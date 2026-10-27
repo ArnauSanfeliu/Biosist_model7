@@ -55,9 +55,6 @@ class BaseOperator():
     def __repr__(self):
         return f"{self._repr_name()}({', '.join(self._repr_args())})"
 
-
-mopa = False
-
 class Model:
     state_var_dict: dict[Vals]
     variables: dict

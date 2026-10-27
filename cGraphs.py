@@ -15,6 +15,7 @@ class Graphs:
         self.model = True
 
     def bifurcation_diagram(self): 
+        #wasa
         pass
 
     def concentration_time(self): 
