@@ -1,3 +1,8 @@
+# import 
+
+from cEquations import Equations
+
+
 def main():
     pass
 
