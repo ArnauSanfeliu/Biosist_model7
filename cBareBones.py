@@ -7,7 +7,7 @@ reverse Polish notation. `Op_get` reads a variable or parameter by name,
 
 import math
 
-from cModel import BaseOperator, Vals, Param
+from cModel import BaseOperator
 
 class Delay(BaseOperator):
     name: str

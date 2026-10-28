@@ -6,8 +6,6 @@ every state variable. The solvers (Euler, RK4) only call that list.
 """
 
 from __future__ import annotations
-from copy import deepcopy
-from typing import NamedTuple
 
 class Variable():
     value: float
@@ -56,6 +54,7 @@ class BaseOperator():
         return f"{self._repr_name()}({', '.join(self._repr_args())})"
 
 class Model:
+    name: str
     state_var_dict: dict[Vals]
     variables: dict
     params_dict: dict[Param]
@@ -63,6 +62,7 @@ class Model:
     step_list: list[BaseOperator]
 
     def __init__(self):
+        self.name = None
         self.state_var_dict = {}
         self.params_dict = {}
         self.variables = {}
@@ -80,6 +80,12 @@ class Model:
     def repr_steps(self): # Debugging
         """The stacked operations, one per line."""
         return "\n".join(f"{i+1:3}  {op!r}" for i, op in enumerate(self.step_list))
+
+    def finalize(self):
+        """Merge every named quantity into `variables`, the dict the
+        operators read. Call it after adding all variables and parameters."""
+        self.variables = (self.state_var_dict | self.params_dict | self.probes_dict
+                          | self.algebraic_dict | self.aux_dict)
 
     def add_var(self, name, initial_val):
         self.state_var_dict[name] = Vals(initial_val, 0.0)
@@ -116,8 +122,10 @@ class Model:
     def execute_solver(self, solver: str, dt: float):
         if solver == 'Euler':
             self.Euler(dt)
-        if solver == 'RK4':
+        elif solver == 'RK4':
             self.RK4(dt)
+        else:
+            raise ValueError(f"Unknown solver '{solver}'. Use 'Euler' or 'RK4'.")
 
     def solve_dS(self):
         """Run the operator list once: writes every derivative."""
