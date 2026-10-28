@@ -1,6 +1,5 @@
 from dataclasses import dataclass, field, replace
 from typing import Callable
-
 from cModel import Model
 
 @dataclass(frozen=True)
@@ -12,9 +11,6 @@ class ModelSpec:
     name: str = ''
 
     def __post_init__(self):
-        self.validate()
-
-    def __init__(self):
         self.validate()
 
     def build(self) -> Model:
