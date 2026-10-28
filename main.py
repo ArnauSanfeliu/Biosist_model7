@@ -9,8 +9,6 @@ from cEquations import PAPER, TEST
 import matplotlib.pyplot as plt
 
 from Solve import solve
-from cEquations import build_paper_step_list
-
 
 def bifurcation_diagram():
     #wasa
