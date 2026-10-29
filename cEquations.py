@@ -52,7 +52,7 @@ def build_paper_step_list(m) -> list:
 
 PAPER = ModelSpec(
     name='paper',
-    state_vars={'M': 1.0, 'I': 0.2},
+    state_vars={'M': 1, 'I': 0.2},
     params={'r': 0.5, 'phi': 0.45, 'nu': 0.5, 'delta': 0.2},
     build_steps=build_paper_step_list,
 )
