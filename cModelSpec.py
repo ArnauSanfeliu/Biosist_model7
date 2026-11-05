@@ -8,6 +8,7 @@ class ModelSpec:
     params: dict[str, float]              # name -> value
     build_steps: Callable[[Model], list]  
     jacobian: Callable[[dict,dict],bool]
+    steady_states: Callable[[dict],dict]
     probes: dict[str, float] = field(default_factory=dict)
     name: str = ''
     

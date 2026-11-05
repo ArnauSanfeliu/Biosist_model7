@@ -4,32 +4,15 @@ concentration according to some parameter, steady state analysis,
 bifurcation analysis, etc.
 """
 
-from cEquations import PAPER, TEST, CESC
+from cEquations import PAPER #, TEST, CESC
 
 import matplotlib.pyplot as plt
+import numpy as np
 
 from Solve import solve, steady_state
 
-def figure3(spec=PAPER, phis=(0.2, 0.45, 0.7)):
-    # for i,phi in enumerate(phis):
-    #     data = solve(spec.with_params(phi=phi, r=0.5, nu=0.7, delta=1))
-
-    #     t = data.get('t')[-1]
-    #     M = data.get('M')[-1]
-    #     I = data.get('I')[-1]
-
-    # plt.figure(figsize=(13, 5))
-    # plt.subplot(1, 1, 1)
-    # plt.plot(t, M, label='[M]', color='#053E80')
-    # plt.plot(t, I, label='[I]', color='#75C8C0')
-    # plt.title('M,I concentration through time')
-    # plt.xlabel('Time (months)')
-    # plt.ylabel('[M],[I]')
-    # plt.legend()
-
-    # plt.tight_layout()
-    # plt.show()
-    steady_state(spec)
+def figure3(spec=PAPER, phi_range=np.arange(0,10,0.05)):
+    steady_state(spec, phi_range)
 
 
 def concentration_time():

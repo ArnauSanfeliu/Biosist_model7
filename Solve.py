@@ -17,10 +17,14 @@ def solve(spec: ModelSpec, t_final=300.0, dt=0.05, solver='RK4') -> dict:
                 result[k].append(m.variables[k].value)
         return result
 
-def steady_state(spec: ModelSpec):
+def steady_state(spec: ModelSpec, phi_range):
     if spec.name == 'paper':
-        spec.jacobian({},{})
-        
+        for phi in phi_range:
+            states = spec.steady_states(params=spec.params | {'phi': phi})
+            print(type(states))
+            for ss in states.values:
+                spec.jacobian(ss,{spec.params})
+            
     elif spec.name == 'cesc':
         print('wasa2')
  
