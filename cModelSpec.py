@@ -8,7 +8,9 @@ class ModelSpec:
     params: dict[str, float]              # name -> value
     build_steps: Callable[[Model], list]  
     probes: dict[str, float] = field(default_factory=dict)
+    jacobian: Callable[[dict,dict],bool]
     name: str = ''
+    
 
     def __post_init__(self):
         self.validate()

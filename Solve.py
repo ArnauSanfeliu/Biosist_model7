@@ -17,5 +17,10 @@ def solve(spec: ModelSpec, t_final=300.0, dt=0.05, solver='RK4') -> dict:
                 result[k].append(m.variables[k].value)
         return result
 
-def steady_state(spec: ModelSpec, ):
-     pass
+def steady_state(spec: ModelSpec):
+    if spec.name == 'paper':
+        spec.jacobian({},{})
+        
+    elif spec.name == 'cesc':
+        print('wasa2')
+ 

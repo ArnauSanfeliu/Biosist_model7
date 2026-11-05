@@ -1,3 +1,5 @@
+from typing import Callable
+
 from cModelSpec import ModelSpec
 from cBareBones import Op_get,Op_set_der,Op_prod,Op_sign,Op_sum,Op_div,Op_const 
 
@@ -50,11 +52,20 @@ def build_paper_step_list(m) -> list:
         Op_set_der(m, name='I')
     ]
 
+def build_jacobian() -> Callable[[dict,dict],bool]:
+    def jacobian():
+        print('niggobian')    
+    return jacobian()
+
+    
+
+
 PAPER = ModelSpec(
     name='paper',
     state_vars={'M': 1, 'I': 0.2},
     params={'r': 0.5, 'phi': 0.45, 'nu': 0.5, 'delta': 0.2},
     build_steps=build_paper_step_list,
+    jacobian=build_jacobian,
 )
 
 def build_cesc_step_list(m) -> list:
