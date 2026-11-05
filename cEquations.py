@@ -52,7 +52,7 @@ def build_paper_step_list(m) -> list:
         Op_set_der(m, name='I')
     ]
 
-def build_jacobian() -> Callable[[dict,dict],bool]:
+def build_jacobian_paper() -> Callable[[dict,dict],bool]:
     def jacobian():
         print('niggobian')    
     return jacobian()
@@ -65,7 +65,7 @@ PAPER = ModelSpec(
     state_vars={'M': 1, 'I': 0.2},
     params={'r': 0.5, 'phi': 0.45, 'nu': 0.5, 'delta': 0.2},
     build_steps=build_paper_step_list,
-    jacobian=build_jacobian,
+    jacobian=build_jacobian_paper(),
 )
 
 def build_cesc_step_list(m) -> list:
@@ -138,6 +138,7 @@ CESC = ModelSpec(
     state_vars={'M': 1.0, 'I': 0.2, 'D': 0.0},
     params={'r': 0.5, 'phi': 0.45, 'nu': 0.5, 'delta': 0.2, 'a': 0.0, 'b': 0.0},
     build_steps=build_cesc_step_list,
+    jacobian=build_jacobian_paper(),
 )
 
 def build_test_step_list(m) -> list:
@@ -158,4 +159,5 @@ TEST = ModelSpec(
     state_vars={'I': 0.2},
     params={'nu': 0.5, 'delta': 0.2},
     build_steps=build_test_step_list,
+    jacobian=build_jacobian_paper(),
 )

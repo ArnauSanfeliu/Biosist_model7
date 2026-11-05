@@ -7,8 +7,8 @@ class ModelSpec:
     state_vars: dict[str, float]          # name -> initial value
     params: dict[str, float]              # name -> value
     build_steps: Callable[[Model], list]  
-    probes: dict[str, float] = field(default_factory=dict)
     jacobian: Callable[[dict,dict],bool]
+    probes: dict[str, float] = field(default_factory=dict)
     name: str = ''
     
 
