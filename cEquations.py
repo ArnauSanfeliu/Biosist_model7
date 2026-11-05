@@ -54,16 +54,21 @@ def build_paper_step_list(m) -> list:
     ]
 
 def build_jacobian_paper() -> Callable[[dict, dict], bool]:
-    def jacobian(state: list, params: dict) -> bool:
+    def jacobian(state: list, params: dict) -> bool | None:
         r, phi, nu, delta = params['r'], params['phi'], params['nu'], params['delta']
         M, I = state[0], state[1]
 
-        J = np.array([
-            [r*(1 - 2*M) - phi*nu*I/(M + nu)**2,   -phi*M/(M + nu)],
-            [phi*nu*I/(M + nu)**2,                  phi*M/(M + nu) - delta],
-        ])
+        with np.errstate(divide='ignore', invalid='ignore'):   # silence the warnings
+            J = np.array([
+                [r*(1 - 2*M) - phi*nu*I/(M + nu)**2,   -phi*M/(M + nu)],
+                [phi*nu*I/(M + nu)**2,                  phi*M/(M + nu) - delta],
+            ])
+
+        if not np.all(np.isfinite(J)):
+            return None                       # undefined at this point
+
         eig = np.linalg.eigvals(J)
-        return bool(np.all(eig.real < 0))   # True = estable
+        return bool(np.all(eig.real < 0))    
     return jacobian
 
 def build_steady_states_paper() -> Callable[[dict],dict]:
