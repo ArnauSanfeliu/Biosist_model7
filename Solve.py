@@ -22,6 +22,6 @@ def steady_state(spec: ModelSpec, phi_range):
     for phi in phi_range:
         states = spec.steady_states(params=spec.params | {'phi': phi})
         for name,ss in states.items():
-            stability = spec.jacobian(ss,spec.params)
+            stability = spec.jacobian(ss,spec.params | {'phi': phi})
             result.append((name, ss, stability, phi))
     return result
