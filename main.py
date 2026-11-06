@@ -3,16 +3,39 @@ Functions to graph different figure types: concentration over time,
 concentration according to some parameter, steady state analysis,
 bifurcation analysis, etc.
 """
-
-from cEquations import PAPER #, TEST, CESC
-
 import matplotlib.pyplot as plt
 import numpy as np
+from collections import defaultdict
 
+from cEquations import PAPER #, TEST, CESC
 from Solve import solve, steady_state
 
 def figure3(spec=PAPER, phi_range=np.arange(0,10,0.05)):
-    steady_state(spec, phi_range)
+    def split_branches(points):
+        branches = defaultdict(list)
+        for name, (M, I), stable, phi in points:
+            if stable is not None:                    # skip points where the Jacobian was undefined
+                branches[name].append((phi, M, I, stable))
+        return {k: sorted(v) for k, v in branches.items()}   # sort by phi
+
+    points = steady_state(spec, phi_range)
+    branches = split_branches(points)
+    fig, axes = plt.subplots(1, 2, figsize=(12, 4), sharex=True)
+
+    for name, rows in branches.items():
+        phi, M, I, stable = map(np.array, zip(*rows))
+        stable = stable.astype(bool)
+        for ax, y in zip(axes, (M, I)):
+            line, = ax.plot(phi, np.where(stable, y, np.nan), '-', label=name)
+            ax.plot(phi, np.where(~stable, y, np.nan), '--', color=line.get_color())
+
+    for ax, lab in zip(axes, ('M*', 'I*')):
+        ax.set_xlabel('φ'); ax.set_ylabel(lab); ax.legend()
+        ax.set_xlim(0, 10)
+        ax.set_ylim(-0.1, 1.1)
+        
+    plt.tight_layout(); plt.show()
+
 
 
 def concentration_time():
