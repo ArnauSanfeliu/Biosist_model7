@@ -23,7 +23,7 @@ def build_paper_step_list(m) -> list:
         Op_prod(m),
 
         Op_get(m, name='M'), # ------ Denominator --------
-        Op_get(m, name='nu'),
+        Op_get(m, name='eta'),
         Op_sum(m),
         Op_div(m),
 
@@ -39,7 +39,7 @@ def build_paper_step_list(m) -> list:
         Op_prod(m),
 
         Op_get(m, name='M'), # ------ Denominator --------
-        Op_get(m, name='nu'),
+        Op_get(m, name='eta'),
         Op_sum(m),
         Op_div(m),
 
@@ -55,7 +55,7 @@ def build_paper_step_list(m) -> list:
 
 def build_jacobian_paper() -> Callable[[dict, dict], bool]:
     def jacobian(state: list, params: dict) -> bool | None:
-        r, phi, nu, delta = params['r'], params['phi'], params['nu'], params['delta']
+        r, phi, nu, delta = params['r'], params['phi'], params['eta'], params['delta']
         M, I = state[0], state[1]
 
         with np.errstate(divide='ignore', invalid='ignore'):   # silence the warnings
@@ -73,7 +73,7 @@ def build_jacobian_paper() -> Callable[[dict, dict], bool]:
 
 def build_steady_states_paper() -> Callable[[dict],dict]:
     def steady_state(params:dict):
-        delta, nu, phi, r = params.get('delta'), params.get('nu'), params.get('phi'), params.get('r')
+        delta, nu, phi, r = params.get('delta'), params.get('eta'), params.get('phi'), params.get('r')
         ss = {
             '0,0': [0,0], # M=0, I=0
             '1,0': [1,0], # M=1, I=0
@@ -86,7 +86,7 @@ def build_steady_states_paper() -> Callable[[dict],dict]:
 PAPER = ModelSpec(
     name='paper',
     state_vars={'M': 1, 'I': 0.2},
-    params={'r': 0.5, 'phi': 0.45, 'nu': 0.5, 'delta': 0.2},
+    params={'r': 0.5, 'phi': 0.45, 'eta': 0.5, 'delta': 0.2},
     build_steps=build_paper_step_list,
     jacobian=build_jacobian_paper(),
     steady_states=build_steady_states_paper(),
@@ -111,7 +111,7 @@ PAPER = ModelSpec(
 #         Op_prod(m),
 
 #         Op_get(m, name='M'), # ------ Denominator --------
-#         Op_get(m, name='nu'),
+#         Op_get(m, name='eta'),
 #         Op_sum(m),
 #         Op_div(m),
 
@@ -127,7 +127,7 @@ PAPER = ModelSpec(
 #         Op_prod(m),
 
 #         Op_get(m, name='M'), # ------ Denominator --------
-#         Op_get(m, name='nu'),
+#         Op_get(m, name='eta'),
 #         Op_sum(m),
 #         Op_div(m),
 
@@ -160,7 +160,7 @@ PAPER = ModelSpec(
 # CESC = ModelSpec(
 #     name='cesc',
 #     state_vars={'M': 1.0, 'I': 0.2, 'D': 0.0},
-#     params={'r': 0.5, 'phi': 0.45, 'nu': 0.5, 'delta': 0.2, 'a': 0.0, 'b': 0.0},
+#     params={'r': 0.5, 'phi': 0.45, 'eta': 0.5, 'delta': 0.2, 'a': 0.0, 'b': 0.0},
 #     build_steps=build_cesc_step_list,
 #     jacobian=build_jacobian_paper(),
 # )
@@ -168,7 +168,7 @@ PAPER = ModelSpec(
 # def build_test_step_list(m) -> list:
 #     return [
 #         #  I equation:  dI/dt = nu - delta*I
-#         Op_get(m, 'nu'),
+#         Op_get(m, 'eta'),
 #         Op_get(m, 'I'),
 #         Op_get(m, 'delta'),
 #         Op_prod(m),
@@ -181,7 +181,7 @@ PAPER = ModelSpec(
 # TEST = ModelSpec(
 #     name='test',
 #     state_vars={'I': 0.2},
-#     params={'nu': 0.5, 'delta': 0.2},
+#     params={'eta': 0.5, 'delta': 0.2},
 #     build_steps=build_test_step_list,
 #     jacobian=build_jacobian_paper(),
 # )

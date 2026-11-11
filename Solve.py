@@ -17,11 +17,15 @@ def solve(spec: ModelSpec, t_final=300.0, dt=0.05, solver='RK4') -> dict:
                 result[k].append(m.variables[k].value)
         return result
 
-def steady_state(spec: ModelSpec, phi_range):
+def steady_state(spec: ModelSpec, param_range, param_name):
+    
+    if param_name not in spec.params.keys():
+         raise KeyError
+    
     result = []
-    for phi in phi_range:
-        states = spec.steady_states(params=spec.params | {'phi': phi})
+    for param in param_range:
+        states = spec.steady_states(params=spec.params | {param_name: param})
         for name,ss in states.items():
-            stability = spec.jacobian(ss,spec.params | {'phi': phi})
-            result.append((name, ss, stability, phi))
+            stability = spec.jacobian(ss,spec.params | {param_name: param})
+            result.append((name, ss, stability, param))
     return result
