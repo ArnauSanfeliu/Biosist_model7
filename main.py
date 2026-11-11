@@ -106,60 +106,85 @@ def figure3(spec=PAPER.with_params(r=0.5, eta=0.7, delta=1.0),
         
 
 
-
-
-def figure4(spec=PAPER.with_params(r=0.5, eta=0.7, delta=1.0),
-            param_range=np.arange(0.01, 10, 0.01)):
+def figure4(spec=PAPER.with_params(r=0.5, eta=0.7, delta=1.0, phi=3),
+            param_range=np.arange(-0.1, 2.1, 0.01),
+            eta_orbits=np.linspace(0.48, 0.08, 18)):
     p = spec.params
-    phi_star = p['delta'] * (1 + p['eta'])                 # BP
-    phi_hb = p['delta'] * (1 + p['eta']) / (1 - p['eta'])   # HB
-    colors = {'1,0': '#1f3fbf', '0,0': 'black', '*,*': '#1e6b2f'}
+    eta_star = p['phi']/p['delta'] - 1                              # BP
+    eta_hb = (p['phi'] - p['delta']) / (p['phi'] + p['delta'])      # HB
+    colors = {'1,0': '#37409A', '0,0': '#231F20', '*,*': '#186634'}
 
     # ---------- equilibris agrupats per branca ----------
     branches = defaultdict(list)
-    for name, (M, I), stable, phi in steady_state(spec, param_range, param_name='eta'):
+    for name, (M, I), stable, eta in steady_state(spec, param_range, param_name='eta'):
         if stable is None:
             continue
-        if name == '*,*' and phi <= p['delta']:            # evita la singularitat a phi = delta
-            continue
-        branches[name].append((phi, M, I, stable))
+        branches[name].append((eta, M, I, stable))
 
-    fig, (axA, axB) = plt.subplots(1, 2, figsize=(13, 10))
+    # ---------- cicles límit: per a eta < eta_hb ----------
+    def cycle(eta, t_final=2000, dt=0.05, tail=600):
+        d = solve(spec.with_params(eta=eta), t_final=t_final, dt=dt)
+        n = int(tail / dt)
+        t, M, I = (np.array(d[k][-n:]) for k in ('t', 'M', 'I'))
+        peaks = np.where((M[1:-1] > M[:-2]) & (M[1:-1] >= M[2:]))[0] + 1
+        T = np.mean(np.diff(t[peaks]))
+        return t, M, I, T
+
+    # més dens a prop de la HB; no baixis de ~0.04 (a eta -> 0 la simulació divergeix)
+    eta_cycles = eta_hb - np.r_[np.geomspace(0.002, 0.1, 10), np.arange(0.12, eta_hb - 0.04, 0.02)]
+    max_M = []
+    for eta in eta_cycles:
+        _, M, I, _ = cycle(eta, t_final=4000)
+        max_M.append(M.max())
+
+    fig, (axA, axB) = plt.subplots(1, 2, figsize=(13, 5))
     axB.set_prop_cycle(color=['k', 'g', 'b', 'r', 'gold', 'c'])
 
+    # ---------- A: diagrama de bifurcació ----------
     for name, rows in branches.items():
         rows = np.array(rows)
-        phi, y, stable = rows[:, 0], rows[:, 1], rows[:, 3].astype(bool)
+        eta, y, stable = rows[:, 0], rows[:, 1], rows[:, 3].astype(bool)
         uns = ~stable
         uns[1:] |= uns[:-1].copy(); uns[:-1] |= uns[1:].copy()   # tanca el forat als canvis d'estabilitat
-        axA.plot(phi, np.where(stable, y, np.nan), '-', color=colors[name], lw=1.5)
-        axA.plot(phi, np.where(uns, y, np.nan), '--', color=colors[name], lw=1.5)
+        axA.plot(eta, np.where(stable, y, np.nan), '-', color=colors[name], lw=1.5)
+        axA.plot(eta, np.where(uns, y, np.nan), '--', color=colors[name], lw=1.5)
 
-        # # màxims dels cicles (vermell), començant al punt HB
-        # M_hb = p['delta'] * p['eta'] / (phi_hb - p['delta'])
-        # I_hb = p['r'] * p['eta'] * (phi_hb - phi_star) / (phi_hb - p['delta'])**2
-        # y_hb = M_hb if idx == 1 else I_hb
-        # ax.plot(np.r_[phi_hb, phi_cycles], np.r_[y_hb, max_M if idx == 1 else max_I], 'r-', lw=1.5)
+    # màxims dels cicles (vermell), començant al punt HB
+    M_hb = p['delta'] / (p['phi'] + p['delta'])
+    axA.plot(np.r_[eta_hb, eta_cycles], np.r_[M_hb, max_M], 'r-', lw=1.5, color='#ED1E24')
 
-        # # marcadors BP i HB
-        # y_bp = 1 if idx == 1 else 0
-        # ax.plot(phi_star, y_bp, 's', mfc='white', mec='k', ms=5)
-        # ax.plot(phi_hb, y_hb, 's', color='darkred', ms=5)
-        # ax.annotate('BP', (phi_star, y_bp), xytext=(-18, -14), textcoords='offset points')
-        # ax.annotate('HB', (phi_hb, y_hb), xytext=(-18, -14), textcoords='offset points')
+    # marcadors BP i HB
+    axA.plot(eta_star, 1, 's', mfc='white', mec='k', ms=5)
+    axA.plot(eta_hb, M_hb, 's', color='darkred', ms=5)
+    axA.annotate('BP', (eta_star, 1), xytext=(-20, 6), textcoords='offset points')
+    axA.annotate('HB', (eta_hb, M_hb), xytext=(0, -14), textcoords='offset points')
 
-        axA.set_xlim(0, 2); axA.set_xlabel('η')
-        axA.grid(ls=':', color='gray')
-
+    axA.set_xlim(-0.1, 2.1); axA.set_xlabel('η')
     axA.set_ylim(-0.05, 1.05); axA.set_ylabel('M')
+    axA.grid(ls=':', color='gray')
+
+    # ---------- B: PNA (període normalitzat i alineat) ----------
+    dt = 0.05
+    for eta in eta_orbits:
+        t, M, I, T = cycle(eta)
+        nT = int(T / dt)                                  # mostres per període
+        i0 = np.argmax(M[:nT + 1])                        # 1) primer màxim de M
+        start = i0 - int(0.22 * nT)                       # 2) col·loca'l a t/T = 0.22
+        if start < 0:
+            start += nT
+        sl = slice(start, start + nT + 1)                 # 3) retalla un període
+        tt = (t[sl] - t[sl][0]) / T                       # 4) normalitza el temps
+        axB.plot(tt, M[sl])
+
+    axB.set_xlim(0, 1); axB.set_ylim(0, 1.02)
+    axB.set_xlabel('t / T'); axB.set_ylabel('M')
+    axB.grid(ls=':', color='gray')
+
+    axA.text(0.97, 0.05, 'A', transform=axA.transAxes, ha='right', va='bottom', fontsize=16)
+    axB.text(0.97, 0.95, 'B', transform=axB.transAxes, ha='right', va='top', fontsize=16)
 
     plt.tight_layout()
     plt.show()
-
-
-
-def steady_state_analysis():
-    pass
 
 
 def figure2(spec=PAPER, phis=(0.2, 0.45, 0.7)):
