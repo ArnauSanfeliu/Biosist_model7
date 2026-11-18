@@ -94,7 +94,7 @@ PAPER = ModelSpec(
 
 # def build_cesc_step_list(m) -> list:
 #     return [
-#         #  M equation:  dM/dt = r*M*(1 - M) - phi*I*M/(M + nu)
+#         #  M equation:  dM/dt = r0*(1-D)^c*M*(1 - M) - phi*I*M/(M + nu)
 #         Op_get(m, name='r'),
 #         Op_get(m, name='M'),
 #         Op_prod(m),
@@ -156,6 +156,35 @@ PAPER = ModelSpec(
 #         Op_prod(m),
 #         Op_set_der(m, name='D')
 #     ]
+
+def build_jacobian_cesc() -> Callable[[dict, dict], bool]:
+    def jacobian(state: list, params: dict) -> bool | None:
+        r, phi, nu, delta = params['r'], params['phi'], params['eta'], params['delta']
+        M, I = state[0], state[1]
+
+        with np.errstate(divide='ignore', invalid='ignore'):   # silence the warnings
+            J = np.array([
+                [r*(1 - 2*M) - phi*nu*I/(M + nu)**2,   -phi*M/(M + nu)],
+                [phi*nu*I/(M + nu)**2,                  phi*M/(M + nu) - delta],
+            ])
+
+        if not np.all(np.isfinite(J)):
+            return None                       # undefined at this point
+
+        eig = np.linalg.eigvals(J)
+        return bool(np.all(eig.real < 0))    
+    return jacobian
+
+def build_steady_states_paper() -> Callable[[dict],dict]:
+    def steady_state(params:dict):
+        delta, nu, phi, r = params.get('delta'), params.get('eta'), params.get('phi'), params.get('r')
+        ss = {
+            '0,0': [0,0], # M=0, I=0
+            '1,0': [1,0], # M=1, I=0
+            '*,*': [delta*nu/(phi-delta),r*nu*(phi-delta-delta*nu)/(phi-delta)**2]
+        }
+        return ss
+    return steady_state
 
 # CESC = ModelSpec(
 #     name='cesc',
