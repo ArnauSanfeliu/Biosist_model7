@@ -9,8 +9,8 @@ from collections import defaultdict
 from typing import Callable
 
 from cEquations import PAPER, CESC
-from Solve import solve, steady_state, limit_cycle, cycle_maxima
-from cUtilities import load_patients, DotBar
+from Solve import solve, steady_state, limit_cycle, cycle_maxima, period_grid
+from cUtilities import load_patients
 from cModelSpec import ModelSpec
 
 def figure3(spec=PAPER.with_params(r=0.5, eta=0.7, delta=1.0),
@@ -170,61 +170,53 @@ def figure4(spec=PAPER.with_params(r=0.5, eta=0.7, delta=1.0, phi=3),
     plt.show()
 
 
-def period_grid(spec: ModelSpec, x_name: str, x_vals: list | np.ndarray,
-                y_name: str, y_vals: list | np.ndarray,
-                phi_hb: Callable[[dict], float],
-                t_final: float = 2000, tail: float = 300) -> np.ndarray:
-    """Compute the limit-cycle period T at each point of a parameter grid.
+def _contour_labels(ax, cs):
+    """Contour labels drawn on top of the line with a tight white box,
+    instead of cutting the line (avoids big gaps on coarse grids)."""
+    for t in ax.clabel(cs, inline=False, fmt=lambda v: f'T={v:g}', fontsize=8):
+        t.set_bbox(dict(fc='white', ec='none', pad=0.3))
 
-    Args:
-        spec: Model to simulate.
-        x_name: Name of the parameter on the x axis.
-        x_vals: Values of the x parameter.
-        y_name: Name of the parameter on the y axis.
-        y_vals: Values of the y parameter.
-        phi_hb: Function that returns the Hopf value of phi for a parameter dict.
-        t_final: Total simulation time (months).
-        tail: Length of the final window used to measure the period (months).
 
-    Returns:
-        Array of shape ``(len(y_vals), len(x_vals))`` with the period at each
-        (x, y) point, or ``nan`` where there is no limit cycle.
+def figure6(levels=(28.3, 32, 35.7, 38.4, 41.2, 46, 47.3), n=22, r=0.5,
+            delta_A=1.0, eta_B=0.1, t_final=1500, dt=0.2):
+    """Iso-period curves of the limit cycles (paper, figure 6).
+
+    The grid follows the Hopf line: for each eta (A) or delta (B), phi goes from
+    just above phi_HB with log spacing, where the period changes fastest. The
+    Hopf line itself is added with its analytical period T_H = 2*pi/sqrt(r*delta*eta).
     """
-    T = np.full((len(y_vals), len(x_vals)), np.nan)
-    for i, y in enumerate(DotBar(y_vals, desc=y_name, position=0)):
-        for j, x in enumerate(DotBar(x_vals, desc=f'  {x_name}', position=1, leave=False)):
-            p = spec.params | {x_name: x, y_name: y}
-            if p['phi'] <= phi_hb(p):            # below Hopf: no limit cycle
-                continue
-            _, T[i, j] = limit_cycle(spec.with_params(**{x_name: x, y_name: y}),
-                                     t_final=t_final, tail=tail)
-    return T
-
-
-def figure6(levels=(25, 30, 35, 40, 45, 50), n=25):
-    phi_hb = lambda p: p['delta'] * (1 + p['eta']) / (1 - p['eta'])
-    r = 0.5
+    phi_hb = lambda delta, eta: delta * (1 + eta) / (1 - eta)
+    T_hb = lambda delta, eta: 2 * np.pi / np.sqrt(r * delta * eta)
     fig, (axA, axB) = plt.subplots(1, 2, figsize=(13, 5))
 
-    # ---------- A: pla (phi, eta), delta = 1 ----------
-    d = 1.0
-    phis, etas = np.linspace(1.05, 1.35, n), np.linspace(0.02, 0.12, n)
-    TA = period_grid(PAPER.with_params(r=r, delta=d), 'phi', phis, 'eta', etas, phi_hb)
-    axA.clabel(axA.contour(phis, etas, TA, levels=levels, cmap='turbo'), fmt='T=%d')
-    eta_bp = (2*np.pi/np.array(levels))**2 / (r*d)          # BP: T_H = 2*pi/sqrt(r*delta*eta)
-    axA.plot(d*(1+eta_bp)/(1-eta_bp), eta_bp, 's', mfc='white', mec='k')
+    # ---------- A: pla (phi, eta), delta fix ----------
+    d = delta_A
+    etas = np.linspace(0.02, 0.12, n)
+    ETA, OFF = np.meshgrid(etas, np.geomspace(1e-3, 0.4, n), indexing='ij')
+    PHI = phi_hb(d, ETA) + OFF                                  # sempre per sobre de Hopf
+    TA = period_grid(PAPER.with_params(r=r, delta=d), 'phi', PHI, 'eta', ETA,
+                     t_final=t_final, dt=dt)
+    # afegeix la línia de Hopf (desplaçament 0) amb el període analític
+    ETA, PHI, TA = np.c_[etas, ETA], np.c_[phi_hb(d, etas), PHI], np.c_[T_hb(d, etas), TA]
+    _contour_labels(axA, axA.contour(PHI, ETA, TA, levels=levels, cmap='turbo'))
+    eta_bp = (2*np.pi/np.array(levels))**2 / (r*d)              # BP: on T_H = T
+    axA.plot(phi_hb(d, eta_bp), eta_bp, 's', mfc='white', mec='k')
     axA.set_xlim(1.05, 1.35); axA.set_ylim(0.02, 0.12)
-    axA.set_xlabel('φ'); axA.set_ylabel('η'); axA.set_title('δ = 1')
+    axA.set_xlabel('φ'); axA.set_ylabel('η'); axA.set_title(f'δ = {d}')
 
-    # ---------- B: pla (delta, phi), eta = 0.1 ----------
-    eta = 0.1
-    deltas, phis = np.linspace(0.05, 1.4, n), np.linspace(0.05, 1.4, n)
-    TB = period_grid(PAPER.with_params(r=r, eta=eta), 'delta', deltas, 'phi', phis, phi_hb)
-    axB.clabel(axB.contour(deltas, phis, TB, levels=levels, cmap='turbo'), fmt='T=%d')
+    # ---------- B: pla (delta, phi), eta fix ----------
+    eta = eta_B
+    deltas = np.linspace(0.2, 1.4, n)
+    DEL, OFF = np.meshgrid(deltas, np.geomspace(1e-3, 1.0, n), indexing='ij')
+    PHI = phi_hb(DEL, eta) + OFF
+    TB = period_grid(PAPER.with_params(r=r, eta=eta), 'delta', DEL, 'phi', PHI,
+                     t_final=t_final, dt=dt)
+    DEL, PHI, TB = np.c_[deltas, DEL], np.c_[phi_hb(deltas, eta), PHI], np.c_[T_hb(deltas, eta), TB]
+    _contour_labels(axB, axB.contour(DEL, PHI, TB, levels=levels, cmap='turbo'))
     d_bp = (2*np.pi/np.array(levels))**2 / (r*eta)
-    axB.plot(d_bp, d_bp*(1+eta)/(1-eta), 's', mfc='white', mec='k')
+    axB.plot(d_bp, phi_hb(d_bp, eta), 's', mfc='white', mec='k')
     axB.set_xlim(0, 1.4); axB.set_ylim(0, 1.4)
-    axB.set_xlabel('δ'); axB.set_ylabel('φ'); axB.set_title('η = 0.1')
+    axB.set_xlabel('δ'); axB.set_ylabel('φ'); axB.set_title(f'η = {eta}')
 
     for ax in (axA, axB):
         ax.grid(ls=':', color='gray')
@@ -346,7 +338,7 @@ def main():
     # figure2()
     # figure3()
     # figure4()
-    figure6(n=25)
+    figure6(n=30, dt=0.1, t_final=2000)
     # transient(debug=False)
 
 

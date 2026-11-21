@@ -1,6 +1,7 @@
 import numpy as np
 
 from cModelSpec import ModelSpec
+from cUtilities import DotBar
 
 def solve(spec: ModelSpec, t_final=300.0, dt=0.05, solver='RK4') -> dict:
         m = spec.build()
@@ -80,3 +81,34 @@ def cycle_maxima(spec: ModelSpec, param_name, values, t_final=4000, dt=0.05, tai
         for k in spec.state_vars:
             maxima[k].append(out[k].max())
     return {k: np.array(m) for k, m in maxima.items()}
+
+def period_grid(spec: ModelSpec, x_name: str, X: np.ndarray,
+                y_name: str, Y: np.ndarray,
+                t_final: float = 3000, dt: float = 0.05,
+                tail: float = 300) -> np.ndarray:
+    """Compute the limit-cycle period T at each point of a 2D parameter grid.
+
+    The grid does not need to be rectangular: X and Y can come from any
+    mapping of a meshgrid (e.g. a grid that follows the Hopf line).
+
+    Args:
+        spec: Model to simulate.
+        x_name: Name of the parameter on the x axis.
+        X: 2D array with the value of the x parameter at each grid point.
+        y_name: Name of the parameter on the y axis.
+        Y: 2D array with the value of the y parameter at each grid point
+            (same shape as X).
+        t_final: Total simulation time (months).
+        dt: Integration time step (months).
+        tail: Length of the final window used to measure the period (months).
+
+    Returns:
+        Array with the same shape as X with the period at each point, or
+        ``nan`` where fewer than two peaks are found.
+    """
+    T = np.full(X.shape, np.nan)
+    for i in DotBar(range(X.shape[0]), desc='rows', position=0):
+        for j in DotBar(range(X.shape[1]), desc='  cols', position=1, leave=False):
+            _, T[i, j] = limit_cycle(spec.with_params(**{x_name: X[i, j], y_name: Y[i, j]}),
+                                     t_final=t_final, dt=dt, tail=tail)
+    return T
