@@ -8,7 +8,7 @@ import numpy as np
 from collections import defaultdict
 
 from cEquations import PAPER, CESC
-from Solve import solve, steady_state
+from Solve import solve, steady_state, limit_cycle, cycle_maxima
 from cUtilities import load_patients
 
 def figure3(spec=PAPER.with_params(r=0.5, eta=0.7, delta=1.0),
@@ -29,21 +29,11 @@ def figure3(spec=PAPER.with_params(r=0.5, eta=0.7, delta=1.0),
             continue
         branches[name].append((phi, M, I, stable))
 
-    # ---------- cicles límit: simula i queda't amb la cua ----------
-    def cycle(phi, t_final=1500, dt=0.05, tail=400):
-        d = solve(spec.with_params(phi=phi), t_final=t_final, dt=dt)
-        n = int(tail / dt)
-        t, M, I = (np.array(d[k][-n:]) for k in ('t', 'M', 'I'))
-        peaks = np.where((M[1:-1] > M[:-2]) & (M[1:-1] >= M[2:]))[0] + 1
-        T = np.mean(np.diff(t[peaks]))
-        return t, M, I, T
-
+    # ---------- cicles límit ----------
     # més dens a prop de la HB, on l'amplitud creix com sqrt(phi - phi_hb)
     phi_cycles = phi_hb + np.r_[np.geomspace(0.002, 0.3, 12), np.arange(0.4, 10 - phi_hb + 0.01, 0.2)]
-    max_M, max_I = [], []
-    for phi in phi_cycles:
-        _, M, I, _ = cycle(phi, t_final=4000)
-        max_M.append(M.max()); max_I.append(I.max())
+    maxima = cycle_maxima(spec, 'phi', phi_cycles)
+    max_M, max_I = maxima['M'], maxima['I']
 
     # ---------- figura ----------
     fig, ((axA, axB), (axC, axD)) = plt.subplots(2, 2, figsize=(13, 10))
@@ -80,7 +70,8 @@ def figure3(spec=PAPER.with_params(r=0.5, eta=0.7, delta=1.0),
 
     # ---------- B, D: un període normalitzat per cada phi ----------
     for phi in phi_orbits:
-        t, M, I, T = cycle(phi, t_final=1000, tail=200)
+        out, T = limit_cycle(spec.with_params(phi=phi), t_final=1000, tail=200)
+        t, M, I = out['t'], out['M'], out['I']
         i0 = np.argmax(M[:int(T / 0.05) + 1])            # primer màxim de M
         start = i0 - int(0.22 * T / 0.05)                 # col·loca'l a t/T = 0.22
         if start < 0:
@@ -97,7 +88,7 @@ def figure3(spec=PAPER.with_params(r=0.5, eta=0.7, delta=1.0),
 
     # ---------- inset: freqüència 1/T vs phi ----------
     ins = axA.inset_axes([0.4, 0.5, 0.45, 0.4])
-    ins.plot(phi_inset, [1 / cycle(ph, t_final=1000, tail=200)[3] for ph in phi_inset], 'r-')
+    ins.plot(phi_inset, [1 / limit_cycle(spec.with_params(phi=ph), t_final=1000, tail=200)[1] for ph in phi_inset], 'r-')
     ins.set_xlabel('φ'); ins.set_ylabel('1/T')
 
     for ax, letter in zip((axA, axB, axC, axD), 'ABCD'):
@@ -122,20 +113,9 @@ def figure4(spec=PAPER.with_params(r=0.5, eta=0.7, delta=1.0, phi=3),
         branches[name].append((eta, M, I, stable))
 
     # ---------- cicles límit: per a eta < eta_hb ----------
-    def cycle(eta, t_final=2000, dt=0.05, tail=600):
-        d = solve(spec.with_params(eta=eta), t_final=t_final, dt=dt)
-        n = int(tail / dt)
-        t, M, I = (np.array(d[k][-n:]) for k in ('t', 'M', 'I'))
-        peaks = np.where((M[1:-1] > M[:-2]) & (M[1:-1] >= M[2:]))[0] + 1
-        T = np.mean(np.diff(t[peaks]))
-        return t, M, I, T
-
     # més dens a prop de la HB; no baixis de ~0.04 (a eta -> 0 la simulació divergeix)
     eta_cycles = eta_hb - np.r_[np.geomspace(0.002, 0.1, 10), np.arange(0.12, eta_hb - 0.04, 0.02)]
-    max_M = []
-    for eta in eta_cycles:
-        _, M, I, _ = cycle(eta, t_final=4000)
-        max_M.append(M.max())
+    max_M = cycle_maxima(spec, 'eta', eta_cycles, tail=600)['M']
 
     fig, (axA, axB) = plt.subplots(1, 2, figsize=(13, 5))
     axB.set_prop_cycle(color=['k', 'g', 'b', 'r', 'gold', 'c'])
@@ -166,7 +146,8 @@ def figure4(spec=PAPER.with_params(r=0.5, eta=0.7, delta=1.0, phi=3),
     # ---------- B: PNA (període normalitzat i alineat) ----------
     dt = 0.05
     for eta in eta_orbits:
-        t, M, I, T = cycle(eta)
+        out, T = limit_cycle(spec.with_params(eta=eta), t_final=2000, tail=600)
+        t, M = out['t'], out['M']
         nT = int(T / dt)                                  # mostres per període
         i0 = np.argmax(M[:nT + 1])                        # 1) primer màxim de M
         start = i0 - int(0.22 * nT)                       # 2) col·loca'l a t/T = 0.22
@@ -300,7 +281,7 @@ def transient(spec=CESC, phis=(0.2, 0.45, 0.7), debug=False):
 
 def main():
     figure2()
-    # figure3()
+    figure3()
     # figure4()
     # figure5()
     # transient(debug=False)
