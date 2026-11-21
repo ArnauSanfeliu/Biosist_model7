@@ -149,6 +149,14 @@ class Op_probe(Operator):
 # TIME-DEPENDENT INPUTS (extracellular supplies)
 #======================================================
 
+class Op_time(Operator):
+    """Pushes the current time t (the model's clock)."""
+    def __init__(self, model):
+        super().__init__(model)
+
+    def execute(self, stack: list):
+        stack.append(self.model.time.value)
+
 class Op_step(Operator):
     """Pushes 1 inside the window t_on <= t < t_off, 0 outside."""
     def __init__(self, model, t_on: str, t_off: str):

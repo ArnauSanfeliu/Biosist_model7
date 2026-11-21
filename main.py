@@ -7,8 +7,9 @@ import matplotlib.pyplot as plt
 import numpy as np
 from collections import defaultdict
 
-from cEquations import PAPER #, TEST, CESC
+from cEquations import PAPER, CESC
 from Solve import solve, steady_state
+from cUtilities import load_patients
 
 def figure3(spec=PAPER.with_params(r=0.5, eta=0.7, delta=1.0),
             param_range=np.arange(0.01, 10, 0.01),
@@ -104,7 +105,6 @@ def figure3(spec=PAPER.with_params(r=0.5, eta=0.7, delta=1.0),
 
     plt.tight_layout(); plt.show()
         
-
 
 def figure4(spec=PAPER.with_params(r=0.5, eta=0.7, delta=1.0, phi=3),
             param_range=np.arange(-0.1, 2.1, 0.01),
@@ -208,10 +208,102 @@ def figure2(spec=PAPER, phis=(0.2, 0.45, 0.7)):
     plt.show()
 
 
+def figure7(path='12918_2010_719_MOESM3_ESM.XLS',
+            fits={3: dict(r=0.94, phi=0.50, delta=0.10, eta=0.67, I0=0.38),
+                  6: dict(r=0.90, phi=0.55, delta=0.12, eta=0.64, I0=0.63),
+                  8: dict(r=0.83, phi=0.38, delta=0.13, eta=0.48, I0=0.61),
+                  9: dict(r=0.61, phi=0.43, delta=0.30, eta=0.14, I0=0.42)},
+            noise=0.2, seed=0, spec=PAPER):
+    data = load_patients(path)
+    months = np.arange(0, 48)                 # el primer mes de dades es col·loca a t = 0, com al paper
+    rng = np.random.default_rng(seed)
+    colors = {'CEL': '#1f77b4', 'EDSS': '#8DC63F', 'RELAPSES': '#A020F0'}
+
+    fig = plt.figure(figsize=(16, 10), layout='constrained')
+    figA, figB = fig.subfigures(1, 2, width_ratios=[1.4, 1])
+
+    # ---------- A: dades crues, 9 pacients x (CEL, EDSS, brots) ----------
+    axesA = figA.subplots(len(data), 3)
+    for i, p in enumerate(sorted(data)):
+        for j, key in enumerate(('CEL', 'EDSS', 'RELAPSES')):
+            ax = axesA[i, j]
+            ax.plot(months, data[p][key], color=colors[key], lw=1)
+            ax.set_title(f'Patient {p}', fontsize=8, pad=2)
+            ax.set_ylabel(key.lower() if key == 'RELAPSES' else key, fontsize=7)
+            ax.set_xlim(0, 48)
+            if key == 'RELAPSES':
+                ax.set_ylim(-0.05, 1.05)          # pacients sense brots: eix 0-1 igualment
+            ax.tick_params(labelsize=6)
+            if i == len(data) - 1:
+                ax.set_xlabel('Months', fontsize=7)
+    figA.text(0.0, 1.0, 'A', fontsize=16, va='top')
+
+    # ---------- B: model ajustat vs CEL normalitzat ----------
+    axesB = figB.subplots(len(fits), 1)
+    for ax, (p, f) in zip(axesB, fits.items()):
+        cel = data[p]['CEL'] / data[p]['CEL'].max()          # normalitza per pacient
+
+        f = dict(f); I0 = f.pop('I0')
+        # M0 = primer valor de CEL normalitzat (així comencen les corbes del paper); I0 ajustat
+        d = solve(spec.with_params(**f).with_initial(M=cel[0], I=I0), t_final=48, dt=0.05)
+        t, M = np.array(d['t']), np.array(d['M'])
+
+        # soroll gaussià additiu als punts mensuals (sigma = 20% del màxim normalitzat)
+        M_months = np.interp(months, t, M)
+        M_noisy = M_months + rng.normal(0, noise * cel.max(), size=months.size)
+
+        ax.plot(months, cel, 'o-', color='gray', mfc='white', ms=3, lw=0.8, label='CEL')
+        ax.plot(months, M_noisy, '-', color='#1f77b4', lw=1.2, label='M (noise)')
+        ax.plot(t, M, '--', color='#1f77b4', lw=1.5, label='M (no noise)')
+
+        ax.set_title(f'Patient {p}', fontsize=9)
+        ax.set_xlim(0, 48); ax.set_ylim(0, 1.05)
+        ax.set_xlabel('Time (months)'); ax.set_ylabel('Myelin, CEL (normalised)')
+        ax.text(1.03, 0.5, '\n'.join([f'r = {f["r"]:.2f}', f'φ = {f["phi"]:.2f}',
+                                      f'δ = {f["delta"]:.2f}', f'η = {f["eta"]:.2f}',
+                                      f'$I_0$ = {I0:.2f}']),
+                transform=ax.transAxes, va='center', fontsize=9)
+    axesB[-1].legend(loc='upper center', bbox_to_anchor=(0.5, -0.45), ncol=3, fontsize=8)
+    figB.text(0.0, 1.0, 'B', fontsize=16, va='top')
+
+    plt.tight_layout()
+    plt.show()
+
+
+def transient(spec=CESC, phis=(0.2, 0.45, 0.7), debug=False):
+    plt.figure(figsize=(13, 5))
+    for i, phi in enumerate(phis):
+        if debug:
+            data = solve(spec.with_params(phi=phi, a=0, b=0, Ta=10**12), t_final=600)
+        else:
+            data = solve(spec.with_params(phi=phi), t_final=600)
+
+
+        t = data.get('t')
+        M = data.get('M')
+        I = data.get('I')
+        D = data.get('D')
+        G = np.array(M)*(1-np.array(D))
+
+        plt.subplot(1, 3, i+1)
+        plt.plot(t, M, label='[M]', color='#053E80')
+        plt.plot(t, I, label='[I]', color='#75C8C0')
+        plt.plot(t, D, label='[D]', color="#3E8A34")
+        plt.plot(t, G, label='[G]', color="#B39124")
+        plt.title('M,I,D,G fractions through time')
+        plt.xlabel('Time (months)')
+        plt.ylabel('[M],[I],[D],[G]')
+        plt.legend()
+
+    plt.tight_layout()
+    plt.show()
+
 def main():
-    # figure2(phis=(0.2,4.5,9))
+    figure2()
     # figure3()
-    figure4()
+    # figure4()
+    # figure5()
+    # transient(debug=False)
 
 
 if __name__ == '__main__':
