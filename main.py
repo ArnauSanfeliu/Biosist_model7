@@ -6,10 +6,12 @@ bifurcation analysis, etc.
 import matplotlib.pyplot as plt
 import numpy as np
 from collections import defaultdict
+from typing import Callable
 
 from cEquations import PAPER, CESC
 from Solve import solve, steady_state, limit_cycle, cycle_maxima
-from cUtilities import load_patients
+from cUtilities import load_patients, DotBar
+from cModelSpec import ModelSpec
 
 def figure3(spec=PAPER.with_params(r=0.5, eta=0.7, delta=1.0),
             param_range=np.arange(0.01, 10, 0.01),
@@ -168,6 +170,67 @@ def figure4(spec=PAPER.with_params(r=0.5, eta=0.7, delta=1.0, phi=3),
     plt.show()
 
 
+def period_grid(spec: ModelSpec, x_name: str, x_vals: list | np.ndarray,
+                y_name: str, y_vals: list | np.ndarray,
+                phi_hb: Callable[[dict], float],
+                t_final: float = 2000, tail: float = 300) -> np.ndarray:
+    """Compute the limit-cycle period T at each point of a parameter grid.
+
+    Args:
+        spec: Model to simulate.
+        x_name: Name of the parameter on the x axis.
+        x_vals: Values of the x parameter.
+        y_name: Name of the parameter on the y axis.
+        y_vals: Values of the y parameter.
+        phi_hb: Function that returns the Hopf value of phi for a parameter dict.
+        t_final: Total simulation time (months).
+        tail: Length of the final window used to measure the period (months).
+
+    Returns:
+        Array of shape ``(len(y_vals), len(x_vals))`` with the period at each
+        (x, y) point, or ``nan`` where there is no limit cycle.
+    """
+    T = np.full((len(y_vals), len(x_vals)), np.nan)
+    for i, y in enumerate(DotBar(y_vals, desc=y_name, position=0)):
+        for j, x in enumerate(DotBar(x_vals, desc=f'  {x_name}', position=1, leave=False)):
+            p = spec.params | {x_name: x, y_name: y}
+            if p['phi'] <= phi_hb(p):            # below Hopf: no limit cycle
+                continue
+            _, T[i, j] = limit_cycle(spec.with_params(**{x_name: x, y_name: y}),
+                                     t_final=t_final, tail=tail)
+    return T
+
+
+def figure6(levels=(25, 30, 35, 40, 45, 50), n=25):
+    phi_hb = lambda p: p['delta'] * (1 + p['eta']) / (1 - p['eta'])
+    r = 0.5
+    fig, (axA, axB) = plt.subplots(1, 2, figsize=(13, 5))
+
+    # ---------- A: pla (phi, eta), delta = 1 ----------
+    d = 1.0
+    phis, etas = np.linspace(1.05, 1.35, n), np.linspace(0.02, 0.12, n)
+    TA = period_grid(PAPER.with_params(r=r, delta=d), 'phi', phis, 'eta', etas, phi_hb)
+    axA.clabel(axA.contour(phis, etas, TA, levels=levels, cmap='turbo'), fmt='T=%d')
+    eta_bp = (2*np.pi/np.array(levels))**2 / (r*d)          # BP: T_H = 2*pi/sqrt(r*delta*eta)
+    axA.plot(d*(1+eta_bp)/(1-eta_bp), eta_bp, 's', mfc='white', mec='k')
+    axA.set_xlim(1.05, 1.35); axA.set_ylim(0.02, 0.12)
+    axA.set_xlabel('φ'); axA.set_ylabel('η'); axA.set_title('δ = 1')
+
+    # ---------- B: pla (delta, phi), eta = 0.1 ----------
+    eta = 0.1
+    deltas, phis = np.linspace(0.05, 1.4, n), np.linspace(0.05, 1.4, n)
+    TB = period_grid(PAPER.with_params(r=r, eta=eta), 'delta', deltas, 'phi', phis, phi_hb)
+    axB.clabel(axB.contour(deltas, phis, TB, levels=levels, cmap='turbo'), fmt='T=%d')
+    d_bp = (2*np.pi/np.array(levels))**2 / (r*eta)
+    axB.plot(d_bp, d_bp*(1+eta)/(1-eta), 's', mfc='white', mec='k')
+    axB.set_xlim(0, 1.4); axB.set_ylim(0, 1.4)
+    axB.set_xlabel('δ'); axB.set_ylabel('φ'); axB.set_title('η = 0.1')
+
+    for ax in (axA, axB):
+        ax.grid(ls=':', color='gray')
+    plt.tight_layout(); plt.show()
+
+
 def figure2(spec=PAPER, phis=(0.2, 0.45, 0.7)):
     plt.figure(figsize=(13, 5))
     for i, phi in enumerate(phis):
@@ -280,10 +343,10 @@ def transient(spec=CESC, phis=(0.2, 0.45, 0.7), debug=False):
     plt.show()
 
 def main():
-    figure2()
-    figure3()
+    # figure2()
+    # figure3()
     # figure4()
-    # figure5()
+    figure6(n=25)
     # transient(debug=False)
 
 
