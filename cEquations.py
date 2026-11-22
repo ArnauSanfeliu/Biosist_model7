@@ -103,7 +103,7 @@ PAPER = ModelSpec(
 def build_cesc_step_list(m) -> list:
     return [
         #  M equation:  dM/dt = r0*(1 - D)**c * M*(1 - M) - phi(t)*I*M/(M + eta)
-        Op_get(m, name='r0'),       # ------ r(D) = r0*(1 - D)**c ------
+        Op_get(m, name='r'),       # ------ r(D) = r0*(1 - D)**c ------
         Op_const(m, value=1),
         Op_get(m, name='D'),
         Op_subs(m),
@@ -208,7 +208,7 @@ def cesc_steady_states(p: dict) -> dict:
 CESC = ModelSpec(
     name='cesc',
     state_vars={'M': 1.0, 'I': 0.2, 'D': 0.0},
-    params={'r0': 0.5, 'c': 1.0, 'phi': 0.9, 'Ta': 600.0, 'eta': 0.5, 'delta': 0.2,
+    params={'r': 0.5, 'c': 1.0, 'phi': 0.9, 'Ta': 600.0, 'eta': 0.5, 'delta': 0.2,
             'a': 0.0018, 'b': 0.0017,
             'D_frozen': 0.0},           # only for the steady-state analysis
     build_steps=build_cesc_step_list,

@@ -254,28 +254,37 @@ def figure7(path='12918_2010_719_MOESM3_ESM.XLS',
     months = np.arange(0, 48)                 # el primer mes de dades es col·loca a t = 0, com al paper
     rng = np.random.default_rng(seed)
     colors = {'CEL': '#1f77b4', 'EDSS': '#8DC63F', 'RELAPSES': '#A020F0'}
+    C_MODEL, C_CEL = '#1f77b4', '0.55'
 
-    fig = plt.figure(figsize=(16, 10), layout='constrained')
-    figA, figB = fig.subfigures(1, 2, width_ratios=[1.4, 1])
+    # figura més ampla + marges i separació entre columnes perquè el text de paràmetres respiri
+    fig = plt.figure(figsize=(19, 11), layout='constrained')
+    fig.get_layout_engine().set(w_pad=0.25, h_pad=0.12, wspace=0.0, hspace=0.04)
+    figA, figB = fig.subfigures(1, 2, width_ratios=[1.4, 1], wspace=0.08)
+
+    def clean(ax):
+        ax.set_xlim(0, 48)
+        ax.set_xticks(range(0, 49, 12))
+        ax.grid(alpha=0.25, lw=0.6)
+        ax.spines[['top', 'right']].set_visible(False)
 
     # ---------- A: dades crues, 9 pacients x (CEL, EDSS, brots) ----------
-    axesA = figA.subplots(len(data), 3)
+    axesA = figA.subplots(len(data), 3, sharex=True)
     for i, p in enumerate(sorted(data)):
         for j, key in enumerate(('CEL', 'EDSS', 'RELAPSES')):
             ax = axesA[i, j]
-            ax.plot(months, data[p][key], color=colors[key], lw=1)
-            ax.set_title(f'Patient {p}', fontsize=8, pad=2)
+            ax.plot(months, data[p][key], color=colors[key], lw=1.1)
+            ax.set_title(f'Patient {p}', fontsize=8, pad=2, loc='left', fontweight='bold')
             ax.set_ylabel(key.lower() if key == 'RELAPSES' else key, fontsize=7)
-            ax.set_xlim(0, 48)
             if key == 'RELAPSES':
                 ax.set_ylim(-0.05, 1.05)          # pacients sense brots: eix 0-1 igualment
+            clean(ax)
             ax.tick_params(labelsize=6)
             if i == len(data) - 1:
-                ax.set_xlabel('Months', fontsize=7)
-    figA.text(0.0, 1.0, 'A', fontsize=16, va='top')
+                ax.set_xlabel('Months', fontsize=8)
+    figA.suptitle('A', fontsize=15, fontweight='bold', x=0.02, ha='left')
 
     # ---------- B: model ajustat vs CEL normalitzat ----------
-    axesB = figB.subplots(len(fits), 1)
+    axesB = figB.subplots(len(fits), 1, sharex=True)
     for ax, (p, f) in zip(axesB, fits.items()):
         cel = data[p]['CEL'] / data[p]['CEL'].max()          # normalitza per pacient
 
@@ -288,23 +297,124 @@ def figure7(path='12918_2010_719_MOESM3_ESM.XLS',
         M_months = np.interp(months, t, M)
         M_noisy = M_months + rng.normal(0, noise * cel.max(), size=months.size)
 
-        ax.plot(months, cel, 'o-', color='gray', mfc='white', ms=3, lw=0.8, label='CEL')
-        ax.plot(months, M_noisy, '-', color='#1f77b4', lw=1.2, label='M (noise)')
-        ax.plot(t, M, '--', color='#1f77b4', lw=1.5, label='M (no noise)')
+        ax.plot(months, cel, 'o-', color=C_CEL, mfc='white', ms=3, lw=0.8, label='CEL')
+        ax.plot(months, M_noisy, '-', color=C_MODEL, lw=1.1, alpha=0.75, label='M (noise)')
+        ax.plot(t, M, '--', color=C_MODEL, lw=1.8, label='M (no noise)')
 
-        ax.set_title(f'Patient {p}', fontsize=9)
-        ax.set_xlim(0, 48); ax.set_ylim(0, 1.05)
-        ax.set_xlabel('Time (months)'); ax.set_ylabel('Myelin, CEL (normalised)')
-        ax.text(1.03, 0.5, '\n'.join([f'r = {f["r"]:.2f}', f'φ = {f["phi"]:.2f}',
+        ax.set_title(f'Patient {p}', fontsize=10, loc='left', fontweight='bold')
+        ax.set_ylim(0, 1.05)
+        clean(ax)
+        ax.tick_params(labelsize=8)
+        ax.text(1.04, 0.5, '\n'.join([f'r = {f["r"]:.2f}', f'φ = {f["phi"]:.2f}',
                                       f'δ = {f["delta"]:.2f}', f'η = {f["eta"]:.2f}',
                                       f'$I_0$ = {I0:.2f}']),
-                transform=ax.transAxes, va='center', fontsize=9)
-    axesB[-1].legend(loc='upper center', bbox_to_anchor=(0.5, -0.45), ncol=3, fontsize=8)
-    figB.text(0.0, 1.0, 'B', fontsize=16, va='top')
+                transform=ax.transAxes, va='center', fontsize=8.5, linespacing=1.4,
+                bbox=dict(boxstyle='round,pad=0.45', fc='0.97', ec='0.85', lw=0.6))
+    axesB[-1].set_xlabel('Time (months)')
+    axesB[-1].legend(loc='upper center', bbox_to_anchor=(0.5, -0.38), ncol=3,
+                     fontsize=8, frameon=False)
+    figB.supylabel('Myelin, CEL (normalised)', fontsize=10)
+    figB.suptitle('B', fontsize=15, fontweight='bold', x=0.02, ha='left')
 
-    plt.tight_layout()
     plt.show()
 
+def comparaison_7(path='12918_2010_719_MOESM3_ESM.XLS',
+            fits={3: dict(r=0.94, phi=0.50, delta=0.10, eta=0.67, I0=0.38),
+                  6: dict(r=0.90, phi=0.55, delta=0.12, eta=0.64, I0=0.63),
+                  8: dict(r=0.83, phi=0.38, delta=0.13, eta=0.48, I0=0.61),
+                  9: dict(r=0.61, phi=0.43, delta=0.30, eta=0.14, I0=0.42)},
+            noise=0.2, seed=0, paper=PAPER, cesc=CESC):
+    data = load_patients(path)
+    months = np.arange(0, 48)                 # el primer mes de dades es col·loca a t = 0, com al paper
+    rng = np.random.default_rng(seed)
+
+    C_PAPER, C_EXT, C_CEL = '#1f77b4', '#ec8633', '0.55'
+
+    # figura més ampla + marges i separació entre columnes perquè el text de paràmetres respiri
+    fig = plt.figure(figsize=(19, 11), layout='constrained')
+    fig.get_layout_engine().set(w_pad=0.25, h_pad=0.12, wspace=0.0, hspace=0.04)
+    figA, figB, figC = fig.subfigures(1, 3, width_ratios=[1, 1, 1.1], wspace=0.08)
+
+    def style(ax, p, f, I0):
+        ax.set_title(f'Patient {p}', fontsize=10, loc='left', fontweight='bold')
+        ax.set_xlim(0, 48); ax.set_ylim(0, 1.05)
+        ax.set_xticks(range(0, 49, 12))
+        ax.grid(alpha=0.25, lw=0.6)
+        ax.spines[['top', 'right']].set_visible(False)
+        ax.tick_params(labelsize=8)
+        ax.text(1.04, 0.5, '\n'.join([f'r = {f["r"]:.2f}', f'φ = {f["phi"]:.2f}',
+                                      f'δ = {f["delta"]:.2f}', f'η = {f["eta"]:.2f}',
+                                      f'$I_0$ = {I0:.2f}']),
+                transform=ax.transAxes, va='center', fontsize=8.5, linespacing=1.4,
+                bbox=dict(boxstyle='round,pad=0.45', fc='0.97', ec='0.85', lw=0.6))
+
+    def finish(subfig, axes, title, ncol):
+        axes[-1].set_xlabel('Time (months)')
+        axes[-1].legend(loc='upper center', bbox_to_anchor=(0.5, -0.38), ncol=ncol,
+                        fontsize=8, frameon=False)
+        subfig.supylabel('Myelin, CEL (normalised)', fontsize=10)
+        subfig.suptitle(title, fontsize=15, fontweight='bold', x=0.02, ha='left')
+
+    # ---------- A: dades crues, 9 pacients x (CEL, EDSS, brots) ----------
+    axesA = figA.subplots(len(fits), 1, sharex=True)
+    for ax, (p, f) in zip(axesA, fits.items()):
+        cel = data[p]['CEL'] / data[p]['CEL'].max()          # normalitza per pacient
+
+        f = dict(f); I0 = f.pop('I0')
+        # M0 = primer valor de CEL normalitzat (així comencen les corbes del paper); I0 ajustat
+        d = solve(paper.with_params(**f).with_initial(M=cel[0], I=I0), t_final=48, dt=0.05)
+        t, M = np.array(d['t']), np.array(d['M'])
+
+        # soroll gaussià additiu als punts mensuals (sigma = 20% del màxim normalitzat)
+        M_months = np.interp(months, t, M)
+        M_noisy = M_months + rng.normal(0, noise * cel.max(), size=months.size)
+
+        ax.plot(months, cel, 'o-', color=C_CEL, mfc='white', ms=3, lw=0.8, label='CEL')
+        ax.plot(months, M_noisy, '-', color=C_PAPER, lw=1.1, alpha=0.75, label='M (noise)')
+        ax.plot(t, M, '--', color=C_PAPER, lw=1.8, label='M (no noise)')
+        style(ax, p, f, I0)
+    finish(figA, axesA, 'Paper', ncol=3)
+
+    # ---------- B: model ajustat vs CEL normalitzat ----------
+    axesB = figB.subplots(len(fits), 1, sharex=True)
+    for ax, (p, f) in zip(axesB, fits.items()):
+        cel = data[p]['CEL'] / data[p]['CEL'].max()          # normalitza per pacient
+
+        f = dict(f); I0 = f.pop('I0')
+        d = solve(cesc.with_params(**f).with_initial(M=cel[0], I=I0), t_final=48, dt=0.05)
+        t, M = np.array(d['t']), np.array(d['M'])
+
+        M_months = np.interp(months, t, M)
+        M_noisy = M_months + rng.normal(0, noise * cel.max(), size=months.size)
+
+        ax.plot(months, cel, 'o-', color=C_CEL, mfc='white', ms=3, lw=0.8, label='CEL')
+        ax.plot(months, M_noisy, '-', color=C_EXT, lw=1.1, alpha=0.75, label='M (noise)')
+        ax.plot(t, M, '--', color=C_EXT, lw=1.8, label='M (no noise)')
+        style(ax, p, f, I0)
+    finish(figB, axesB, 'Extension', ncol=3)
+
+    # ---------- C: model comparaisons ----------
+    axesC = figC.subplots(len(fits), 1, sharex=True)
+    for ax, (p, f) in zip(axesC, fits.items()):
+        cel = data[p]['CEL'] / data[p]['CEL'].max()          # normalitza per pacient
+
+        f = dict(f); I0 = f.pop('I0')
+        d_paper = solve(paper.with_params(**f).with_initial(M=cel[0], I=I0), t_final=48, dt=0.05)
+        d_cesc = solve(cesc.with_params(**f).with_initial(M=cel[0], I=I0), t_final=48, dt=0.05)
+        t, M_paper = np.array(d_paper['t']), np.array(d_paper['M'])
+        t, M_cesc = np.array(d_cesc['t']), np.array(d_cesc['M'])
+
+        M_noisy_paper = np.interp(months, t, M_paper) + rng.normal(0, noise * cel.max(), size=months.size)
+        M_noisy_cesc = np.interp(months, t, M_cesc) + rng.normal(0, noise * cel.max(), size=months.size)
+
+        ax.plot(months, M_noisy_paper, '-', color=C_PAPER, lw=1.1, alpha=0.75, label='M paper (noise)')
+        ax.plot(months, M_noisy_cesc, '-', color=C_EXT, lw=1.1, alpha=0.75, label='M extension (noise)')
+        ax.plot(t, M_paper, '--', color=C_PAPER, lw=1.8, label='M paper (no noise)')
+        ax.plot(t, M_cesc, '--', color=C_EXT, lw=1.8, label='M extension (no noise)')
+        style(ax, p, f, I0)
+    finish(figC, axesC, 'Comparison', ncol=2)
+
+    plt.show()
 
 def transient(spec=CESC, phis=(0.2, 0.45, 0.7), debug=False):
     plt.figure(figsize=(13, 5))
@@ -338,8 +448,10 @@ def main():
     # figure2()
     # figure3()
     # figure4()
-    figure6(n=30, dt=0.1, t_final=2000)
+    # figure6(n=30, dt=0.1, t_final=2000)
     # transient(debug=False)
+    figure7()
+    comparaison_7()
 
 
 if __name__ == '__main__':
