@@ -268,7 +268,7 @@ def figure7(path='12918_2010_719_MOESM3_ESM.XLS',
         ax.spines[['top', 'right']].set_visible(False)
 
     # ---------- A: dades crues, 9 pacients x (CEL, EDSS, brots) ----------
-    axesA = figA.subplots(len(data), 3, sharex=True)
+    axesA = figA.subplots(len(data), 3)
     for i, p in enumerate(sorted(data)):
         for j, key in enumerate(('CEL', 'EDSS', 'RELAPSES')):
             ax = axesA[i, j]
@@ -284,7 +284,7 @@ def figure7(path='12918_2010_719_MOESM3_ESM.XLS',
     figA.suptitle('A', fontsize=15, fontweight='bold', x=0.02, ha='left')
 
     # ---------- B: model ajustat vs CEL normalitzat ----------
-    axesB = figB.subplots(len(fits), 1, sharex=True)
+    axesB = figB.subplots(len(fits), 1)
     for ax, (p, f) in zip(axesB, fits.items()):
         cel = data[p]['CEL'] / data[p]['CEL'].max()          # normalitza per pacient
 
@@ -318,6 +318,7 @@ def figure7(path='12918_2010_719_MOESM3_ESM.XLS',
 
     plt.show()
 
+
 def comparaison_7(path='12918_2010_719_MOESM3_ESM.XLS',
             fits={3: dict(r=0.94, phi=0.50, delta=0.10, eta=0.67, I0=0.38),
                   6: dict(r=0.90, phi=0.55, delta=0.12, eta=0.64, I0=0.63),
@@ -325,7 +326,8 @@ def comparaison_7(path='12918_2010_719_MOESM3_ESM.XLS',
                   9: dict(r=0.61, phi=0.43, delta=0.30, eta=0.14, I0=0.42)},
             noise=0.2, seed=0, paper=PAPER, cesc=CESC):
     data = load_patients(path)
-    months = np.arange(0, 48)                 # el primer mes de dades es col·loca a t = 0, com al paper
+    t_final = 48
+    months = np.arange(0, t_final)                 # el primer mes de dades es col·loca a t = 0, com al paper
     rng = np.random.default_rng(seed)
 
     C_PAPER, C_EXT, C_CEL = '#1f77b4', '#ec8633', '0.55'
@@ -335,9 +337,9 @@ def comparaison_7(path='12918_2010_719_MOESM3_ESM.XLS',
     fig.get_layout_engine().set(w_pad=0.25, h_pad=0.12, wspace=0.0, hspace=0.04)
     figA, figB, figC = fig.subfigures(1, 3, width_ratios=[1, 1, 1.1], wspace=0.08)
 
-    def style(ax, p, f, I0):
+    def style(ax, p, f, I0, t_final):
         ax.set_title(f'Patient {p}', fontsize=10, loc='left', fontweight='bold')
-        ax.set_xlim(0, 48); ax.set_ylim(0, 1.05)
+        ax.set_xlim(0, t_final); ax.set_ylim(0, 1.05)
         ax.set_xticks(range(0, 49, 12))
         ax.grid(alpha=0.25, lw=0.6)
         ax.spines[['top', 'right']].set_visible(False)
@@ -356,7 +358,7 @@ def comparaison_7(path='12918_2010_719_MOESM3_ESM.XLS',
         subfig.suptitle(title, fontsize=15, fontweight='bold', x=0.02, ha='left')
 
     # ---------- A: dades crues, 9 pacients x (CEL, EDSS, brots) ----------
-    axesA = figA.subplots(len(fits), 1, sharex=True)
+    axesA = figA.subplots(len(fits), 1)
     for ax, (p, f) in zip(axesA, fits.items()):
         cel = data[p]['CEL'] / data[p]['CEL'].max()          # normalitza per pacient
 
@@ -372,11 +374,11 @@ def comparaison_7(path='12918_2010_719_MOESM3_ESM.XLS',
         ax.plot(months, cel, 'o-', color=C_CEL, mfc='white', ms=3, lw=0.8, label='CEL')
         ax.plot(months, M_noisy, '-', color=C_PAPER, lw=1.1, alpha=0.75, label='M (noise)')
         ax.plot(t, M, '--', color=C_PAPER, lw=1.8, label='M (no noise)')
-        style(ax, p, f, I0)
+        style(ax, p, f, I0, t_final)
     finish(figA, axesA, 'Paper', ncol=3)
 
     # ---------- B: model ajustat vs CEL normalitzat ----------
-    axesB = figB.subplots(len(fits), 1, sharex=True)
+    axesB = figB.subplots(len(fits), 1)
     for ax, (p, f) in zip(axesB, fits.items()):
         cel = data[p]['CEL'] / data[p]['CEL'].max()          # normalitza per pacient
 
@@ -390,31 +392,34 @@ def comparaison_7(path='12918_2010_719_MOESM3_ESM.XLS',
         ax.plot(months, cel, 'o-', color=C_CEL, mfc='white', ms=3, lw=0.8, label='CEL')
         ax.plot(months, M_noisy, '-', color=C_EXT, lw=1.1, alpha=0.75, label='M (noise)')
         ax.plot(t, M, '--', color=C_EXT, lw=1.8, label='M (no noise)')
-        style(ax, p, f, I0)
+        style(ax, p, f, I0, t_final)
     finish(figB, axesB, 'Extension', ncol=3)
 
     # ---------- C: model comparaisons ----------
-    axesC = figC.subplots(len(fits), 1, sharex=True)
+    t_final = 500
+    months = np.arange(0, t_final)
+    axesC = figC.subplots(len(fits), 1)
     for ax, (p, f) in zip(axesC, fits.items()):
         cel = data[p]['CEL'] / data[p]['CEL'].max()          # normalitza per pacient
 
         f = dict(f); I0 = f.pop('I0')
-        d_paper = solve(paper.with_params(**f).with_initial(M=cel[0], I=I0), t_final=48, dt=0.05)
-        d_cesc = solve(cesc.with_params(**f).with_initial(M=cel[0], I=I0), t_final=48, dt=0.05)
+        d_paper = solve(paper.with_params(**f).with_initial(M=cel[0], I=I0), t_final=t_final, dt=0.05)
+        d_cesc = solve(cesc.with_params(**f).with_initial(M=cel[0], I=I0), t_final=t_final, dt=0.05)
         t, M_paper = np.array(d_paper['t']), np.array(d_paper['M'])
         t, M_cesc = np.array(d_cesc['t']), np.array(d_cesc['M'])
 
         M_noisy_paper = np.interp(months, t, M_paper) + rng.normal(0, noise * cel.max(), size=months.size)
         M_noisy_cesc = np.interp(months, t, M_cesc) + rng.normal(0, noise * cel.max(), size=months.size)
 
-        ax.plot(months, M_noisy_paper, '-', color=C_PAPER, lw=1.1, alpha=0.75, label='M paper (noise)')
-        ax.plot(months, M_noisy_cesc, '-', color=C_EXT, lw=1.1, alpha=0.75, label='M extension (noise)')
+        ax.plot(months, M_noisy_paper, '-', color=C_PAPER, lw=1.1, alpha=0.25, label='M paper (noise)')
+        ax.plot(months, M_noisy_cesc, '-', color=C_EXT, lw=1.1, alpha=0.25, label='M extension (noise)')
         ax.plot(t, M_paper, '--', color=C_PAPER, lw=1.8, label='M paper (no noise)')
         ax.plot(t, M_cesc, '--', color=C_EXT, lw=1.8, label='M extension (no noise)')
-        style(ax, p, f, I0)
+        style(ax, p, f, I0, t_final)
     finish(figC, axesC, 'Comparison', ncol=2)
 
     plt.show()
+
 
 def transient(spec=CESC, phis=(0.2, 0.45, 0.7), debug=False):
     plt.figure(figsize=(13, 5))
@@ -444,13 +449,14 @@ def transient(spec=CESC, phis=(0.2, 0.45, 0.7), debug=False):
     plt.tight_layout()
     plt.show()
 
+
 def main():
     # figure2()
     # figure3()
     # figure4()
     # figure6(n=30, dt=0.1, t_final=2000)
     # transient(debug=False)
-    figure7()
+    # figure7()
     comparaison_7()
 
 
