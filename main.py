@@ -7,8 +7,9 @@ import matplotlib.pyplot as plt
 import numpy as np
 from collections import defaultdict
 from typing import Callable
+from scipy.signal import find_peaks
 
-from cEquations import PAPER, CESC
+from cEquations import PAPER, CESC, CESCH
 from Solve import solve, steady_state, limit_cycle, cycle_maxima, period_grid
 from cUtilities import load_patients
 from cModelSpec import ModelSpec
@@ -450,6 +451,74 @@ def transient(spec=CESC, phis=(0.2, 0.45, 0.7), debug=False):
     plt.show()
 
 
+def stackplot_RAW_PIRA(spec=CESCH, t_final=600, prominence=0.05):
+    """Split of the accumulated damage D into its two sources (methods, step 3).
+
+    A: D_RAW + D_PIRA stacked (= D).          B: rate of each contribution.
+    C: time courses of M, I, D and G.         D: fraction of D due to PIRA.
+    Vertical lines: phi(t) = phi_H (analytical) and last relapse (simulated).
+    """
+    p = spec.params
+    phi_H = p['delta'] * (1 + p['eta']) / (1 - p['eta'])
+    t_hopf = p['Ta'] * np.log(p['phi'] / phi_H)            # mesos; < 0 si phi0 < phi_H
+    C_RAW, C_PIRA = '#d95f02', '#7570b3'
+
+    d = solve(spec, t_final=t_final)
+    t = np.array(d['t'])
+    ty = t / 12                                            # mesos -> anys
+    M, I, D = np.array(d['M']), np.array(d['I']), np.array(d['D'])
+    RAW, PIRA = np.array(d['RAW']), np.array(d['PIRA'])
+
+    # ---------- últim brot: últim pic de I prou gran ----------
+    peaks, _ = find_peaks(I, prominence=prominence)        # ignora les oscil·lacions petites prop de HB
+    t_last = t[peaks[-1]] if len(peaks) else np.nan
+
+    fig, ((axA, axB), (axC, axD)) = plt.subplots(2, 2, figsize=(13, 10), sharex=True)
+
+    # ---------- A: D = D_RAW + D_PIRA ----------
+    axA.stackplot(ty, RAW, PIRA, colors=[C_RAW, C_PIRA], alpha=0.8,
+                  labels=['Demyelination-driven (a)', 'Background (b)'])
+    axA.set_ylabel('D')
+    axA.set_title('Accumulated damage split by source')
+
+    # ---------- B: velocitat de cada contribució ----------
+    axB.plot(ty, d['dRAW'], color=C_RAW, label='dRAW/dt')
+    axB.plot(ty, d['dPIRA'], color=C_PIRA, label='dPIRA/dt')
+    axB.set_ylabel('dD/dt contribution')
+    axB.set_title('Damage rate of each source')
+
+    # ---------- C: M, I, D i mielina total G = M (1 - D) ----------
+    axC.plot(ty, M, label='M', color='#053E80')
+    axC.plot(ty, I, label='I', color='#75C8C0')
+    axC.plot(ty, D, label='D', color='#3E8A34')
+    axC.plot(ty, M * (1 - D), label='G', color='#B39124')
+    axC.set_ylabel('M, I, D, G')
+    axC.set_title('Myelin, inflammation, damage and total myelin G')
+
+    # ---------- D: fracció de D deguda a PIRA ----------
+    with np.errstate(divide='ignore', invalid='ignore'):
+        axD.plot(ty, np.where(D > 0, PIRA / D, np.nan), color=C_PIRA, label='$D_{PIRA}/D$')
+        axD.plot(ty, np.where(D > 0, RAW / D, np.nan), color=C_RAW, label='$D_{RAW}/D$')
+    axD.set_ylim(0, 1.02)
+    axD.set_ylabel('$D_{PIRA}$ / D')
+    axD.set_ylabel('$D_{RAW}$ / D')
+    axD.set_title('Fractions of damage due to each type (RAW vs PIRA)')
+
+    # ---------- format comú: línies de referència, eixos, lletres ----------
+    for ax, letter in zip((axA, axB, axC, axD), 'ABCD'):
+        if t_hopf > 0:
+            ax.axvline(t_hopf / 12, ls='--', c='k', lw=1, label=r'$\phi(t)=\phi_H$')
+        if not np.isnan(t_last):
+            ax.axvline(t_last / 12, ls=':', c='k', lw=1, label='Last relapse')
+        ax.set_xlim(0, ty[-1])
+        ax.grid(ls=':', color='gray')
+        ax.legend(loc='upper left', fontsize=8)
+        ax.text(0.97, 0.95, letter, transform=ax.transAxes, ha='right', va='top', fontsize=16)
+    for ax in (axC, axD):
+        ax.set_xlabel('Time (years)')
+
+    plt.tight_layout(); plt.show()
+
 def main():
     # figure2()
     # figure3()
@@ -457,7 +526,8 @@ def main():
     # figure6(n=30, dt=0.1, t_final=2000)
     # transient(debug=False)
     # figure7()
-    comparaison_7()
+    # comparaison_7()
+    stackplot_RAW_PIRA(CESCH.with_params(phi=0.7))
 
 
 if __name__ == '__main__':
