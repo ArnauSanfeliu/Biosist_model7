@@ -397,7 +397,7 @@ def comparaison_7(path='12918_2010_719_MOESM3_ESM.XLS',
     finish(figB, axesB, 'Extension', ncol=3)
 
     # ---------- C: model comparaisons ----------
-    t_final = 500
+    t_final = 600
     months = np.arange(0, t_final)
     axesC = figC.subplots(len(fits), 1)
     for ax, (p, f) in zip(axesC, fits.items()):
@@ -407,7 +407,7 @@ def comparaison_7(path='12918_2010_719_MOESM3_ESM.XLS',
         d_paper = solve(paper.with_params(**f).with_initial(M=cel[0], I=I0), t_final=t_final, dt=0.05)
         d_cesc = solve(cesc.with_params(**f).with_initial(M=cel[0], I=I0), t_final=t_final, dt=0.05)
         t, M_paper = np.array(d_paper['t']), np.array(d_paper['M'])
-        t, M_cesc = np.array(d_cesc['t']), np.array(d_cesc['M'])
+        t, M_cesc = np.array(d_cesc['t']), np.array(np.array(d_cesc['M'])*(1-np.array(d_cesc['D'])))
 
         M_noisy_paper = np.interp(months, t, M_paper) + rng.normal(0, noise * cel.max(), size=months.size)
         M_noisy_cesc = np.interp(months, t, M_cesc) + rng.normal(0, noise * cel.max(), size=months.size)
@@ -416,6 +416,7 @@ def comparaison_7(path='12918_2010_719_MOESM3_ESM.XLS',
         ax.plot(months, M_noisy_cesc, '-', color=C_EXT, lw=1.1, alpha=0.25, label='M extension (noise)')
         ax.plot(t, M_paper, '--', color=C_PAPER, lw=1.8, label='M paper (no noise)')
         ax.plot(t, M_cesc, '--', color=C_EXT, lw=1.8, label='M extension (no noise)')
+        ax.plot(t, d_cesc['D'], '--', color="#149031", lw=1.8, label='D (no noise)')
         style(ax, p, f, I0, t_final)
     finish(figC, axesC, 'Comparison', ncol=2)
 
@@ -436,26 +437,31 @@ def transient(spec=CESC, phis=(0.2, 0.45, 0.7), debug=False):
         I = data.get('I')
         D = data.get('D')
         G = np.array(M)*(1-np.array(D))
+        B = 1 - np.array(G) - np.array(D)
 
         plt.subplot(1, 3, i+1)
-        plt.plot(t, M, label='[M]', color='#053E80')
-        plt.plot(t, I, label='[I]', color='#75C8C0')
-        plt.plot(t, D, label='[D]', color="#3E8A34")
-        plt.plot(t, G, label='[G]', color="#B39124")
-        plt.title('M,I,D,G fractions through time')
+        plt.plot(t, G, label='[G]', color='#3E8A34')
+        plt.plot(t, B, label='[B]', color="#C27430")
+        plt.plot(t, D, label='[D]', color="#A71717")
+        # plt.plot(t, I, label='[I]', color="#B39124")
+        plt.title('G,B,D,I fractions through time')
         plt.xlabel('Time (months)')
-        plt.ylabel('[M],[I],[D],[G]')
+        plt.ylabel('[G],[B],[D],[I]')
         plt.legend()
 
     plt.tight_layout()
     plt.show()
 
 
+from scipy.signal import find_peaks          # afegeix-ho als imports de main.py
+from cEquations import PAPER, CESC, CESCH    # CESCH: CESC amb les variables RAW i PIRA
+
+
 def stackplot_RAW_PIRA(spec=CESCH, t_final=600, prominence=0.05):
     """Split of the accumulated damage D into its two sources (methods, step 3).
 
     A: D_RAW + D_PIRA stacked (= D).          B: rate of each contribution.
-    C: time courses of M, I, D and G.         D: fraction of D due to PIRA.
+    C: myelinated (G), demyelinated (B) and dead (D) axon fractions.
     Vertical lines: phi(t) = phi_H (analytical) and last relapse (simulated).
     """
     p = spec.params
@@ -473,7 +479,9 @@ def stackplot_RAW_PIRA(spec=CESCH, t_final=600, prominence=0.05):
     peaks, _ = find_peaks(I, prominence=prominence)        # ignora les oscil·lacions petites prop de HB
     t_last = t[peaks[-1]] if len(peaks) else np.nan
 
-    fig, ((axA, axB), (axC, axD)) = plt.subplots(2, 2, figsize=(13, 10), sharex=True)
+    # A i B a dalt, C ocupa tota la fila de baix
+    fig, axs = plt.subplot_mosaic([['A', 'B'], ['C', 'C']], figsize=(13, 10))
+    axA, axB, axC = axs['A'], axs['B'], axs['C']
 
     # ---------- A: D = D_RAW + D_PIRA ----------
     axA.stackplot(ty, RAW, PIRA, colors=[C_RAW, C_PIRA], alpha=0.8,
@@ -487,45 +495,40 @@ def stackplot_RAW_PIRA(spec=CESCH, t_final=600, prominence=0.05):
     axB.set_ylabel('dD/dt contribution')
     axB.set_title('Damage rate of each source')
 
-    # ---------- C: M, I, D i mielina total G = M (1 - D) ----------
-    axC.plot(ty, M, label='M', color='#053E80')
-    axC.plot(ty, I, label='I', color='#75C8C0')
-    axC.plot(ty, D, label='D', color='#3E8A34')
-    axC.plot(ty, M * (1 - D), label='G', color='#B39124')
-    axC.set_ylabel('M, I, D, G')
-    axC.set_title('Myelin, inflammation, damage and total myelin G')
-
-    # ---------- D: fracció de D deguda a PIRA ----------
-    with np.errstate(divide='ignore', invalid='ignore'):
-        axD.plot(ty, np.where(D > 0, PIRA / D, np.nan), color=C_PIRA, label='$D_{PIRA}/D$')
-        axD.plot(ty, np.where(D > 0, RAW / D, np.nan), color=C_RAW, label='$D_{RAW}/D$')
-    axD.set_ylim(0, 1.02)
-    axD.set_ylabel('$D_{PIRA}$ / D')
-    axD.set_ylabel('$D_{RAW}$ / D')
-    axD.set_title('Fractions of damage due to each type (RAW vs PIRA)')
+    # ---------- C: axons mielinitzats (G), desmielinitzats (B) i morts (D) ----------
+    G = M * (1 - D)                                        # G + B + D = 1
+    B = 1 - G - D
+    axC.plot(ty, G, label='Myelinated (G)', color='#053E80')
+    axC.plot(ty, B, label='Demyelinated (B)', color='#75C8C0')
+    axC.plot(ty, D, label='Dead axons (D)', color='#3E8A34')
+    axC.set_ylabel('G, B, D')
+    axC.set_title('Myelin, Demyelin, Dead axons')
 
     # ---------- format comú: línies de referència, eixos, lletres ----------
-    for ax, letter in zip((axA, axB, axC, axD), 'ABCD'):
+    for letter, ax in axs.items():
         if t_hopf > 0:
             ax.axvline(t_hopf / 12, ls='--', c='k', lw=1, label=r'$\phi(t)=\phi_H$')
         if not np.isnan(t_last):
             ax.axvline(t_last / 12, ls=':', c='k', lw=1, label='Last relapse')
         ax.set_xlim(0, ty[-1])
+        ax.set_xlabel('Time (years)')
         ax.grid(ls=':', color='gray')
         ax.legend(loc='upper left', fontsize=8)
         ax.text(0.97, 0.95, letter, transform=ax.transAxes, ha='right', va='top', fontsize=16)
-    for ax in (axC, axD):
-        ax.set_xlabel('Time (years)')
 
     plt.tight_layout(); plt.show()
 
+
 def main():
+#------------------------------ PAPER --------------------------------
     # figure2()
     # figure3()
     # figure4()
     # figure6(n=30, dt=0.1, t_final=2000)
-    # transient(debug=False)
     # figure7()
+
+#------------------------------  CESC  --------------------------------
+    # transient(debug=False)
     # comparaison_7()
     stackplot_RAW_PIRA(CESCH.with_params(phi=0.7))
 
