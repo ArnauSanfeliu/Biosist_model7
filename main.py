@@ -11,7 +11,7 @@ from scipy.signal import find_peaks
 
 from cEquations import PAPER, CESC, CESCH
 from Solve import solve, steady_state, limit_cycle, cycle_maxima, period_grid
-from cUtilities import load_patients
+from cUtilities import load_patients, DotBar
 from cModelSpec import ModelSpec
 
 def figure3(spec=PAPER.with_params(r=0.5, eta=0.7, delta=1.0),
@@ -397,11 +397,11 @@ def comparaison_7(path='12918_2010_719_MOESM3_ESM.XLS',
     finish(figB, axesB, 'Extension', ncol=3)
 
     # ---------- C: model comparaisons ----------
-    t_final = 600
+    t_final = 48
     months = np.arange(0, t_final)
     axesC = figC.subplots(len(fits), 1)
     for ax, (p, f) in zip(axesC, fits.items()):
-        cel = data[p]['CEL'] / data[p]['CEL'].max()          # normalitza per pacient
+        cel = data[p]['CEL'] / data[p]['CEL'].max()       
 
         f = dict(f); I0 = f.pop('I0')
         d_paper = solve(paper.with_params(**f).with_initial(M=cel[0], I=I0), t_final=t_final, dt=0.05)
@@ -412,16 +412,79 @@ def comparaison_7(path='12918_2010_719_MOESM3_ESM.XLS',
         M_noisy_paper = np.interp(months, t, M_paper) + rng.normal(0, noise * cel.max(), size=months.size)
         M_noisy_cesc = np.interp(months, t, M_cesc) + rng.normal(0, noise * cel.max(), size=months.size)
 
-        ax.plot(months, M_noisy_paper, '-', color=C_PAPER, lw=1.1, alpha=0.25, label='M paper (noise)')
-        ax.plot(months, M_noisy_cesc, '-', color=C_EXT, lw=1.1, alpha=0.25, label='M extension (noise)')
+        ax.plot(months, cel, 'o-', color=C_CEL, mfc='white', ms=3, lw=0.8, label='CEL')
+        ax.plot(months, M_noisy_paper, '-', color=C_PAPER, lw=1.1, alpha=0.75, label='M paper (noise)')
+        ax.plot(months, M_noisy_cesc, '-', color=C_EXT, lw=1.1, alpha=0.75, label='M extension (noise)')
         ax.plot(t, M_paper, '--', color=C_PAPER, lw=1.8, label='M paper (no noise)')
         ax.plot(t, M_cesc, '--', color=C_EXT, lw=1.8, label='M extension (no noise)')
-        ax.plot(t, d_cesc['D'], '--', color="#149031", lw=1.8, label='D (no noise)')
         style(ax, p, f, I0, t_final)
     finish(figC, axesC, 'Comparison', ncol=2)
 
     plt.show()
 
+
+# def comparaison_8():
+#     n = pd.read_whatever()
+#     plt.figure()
+#     for i in :
+
+#         data = solve()
+#         plt.subplot(n,1,i)
+#         plt.plot()
+
+
+def phi_bif(spec=CESC, t_final=600):
+    phis = [0.5, 0.8, 1.5]
+    plt.figure()
+    figA, figB = plt.subplots(1,2)
+
+    for phi in phis:
+        data = solve(spec.with_params(phi=phi), t_final=t_final)
+
+        t = np.array(data.get('t')) 
+        M = np.array(data.get('M')) 
+        D = np.array(data.get('D'))
+        I = np.array(data.get('I'))
+
+        G = M*(1 - D)
+        B = 1 - G - D 
+        OD = 1 - G
+
+        peaks, _ = find_peaks(OD, prominence=0.05)        # ignora les oscil·lacions petites prop de HB
+        t_last = t[peaks[-1]] if len(peaks) else np.nan
+
+        idx = np.where(t == t_last)[0]
+        y_last = OD[idx][0]  # Valor de OD en t_last
+        figA.plot(t, OD, marker='o', markevery=idx, mfc='white', mec='k', ms=8)
+        figA.vlines(t_last, ymin=0, ymax=y_last, ls=':', color='gray', alpha=0.5)
+
+
+    figA.ylim(0, 1.02)
+    figA.xlim(0, 600)
+    figA.xlabel('Time')
+    figA.ylabel('OD')
+    figA.grid(True)
+    figA.legend()
+    figA.title('WASAAAA')
+
+    phis = np.linspace(0.5,3,30)
+
+    for phi in phis:
+        data = solve(spec.with_params(phi=phi), t_final=t_final)
+
+        t = np.array(data.get('t')) 
+        M = np.array(data.get('M')) 
+        D = np.array(data.get('D'))
+        OD = 1 - M*(1 - D)
+
+        peaks, _ = find_peaks(OD, prominence=0.05)        # ignora les oscil·lacions petites prop de HB
+        t_last = t[peaks[-1]] if len(peaks) else np.nan
+
+        idx = np.where(t == t_last)[0]
+        y_last = OD[idx][0]  # Valor de OD en t_last
+
+
+    plt.show()
 
 def transient(spec=CESC, phis=(0.2, 0.45, 0.7), debug=False):
     plt.figure(figsize=(13, 5))
@@ -439,11 +502,16 @@ def transient(spec=CESC, phis=(0.2, 0.45, 0.7), debug=False):
         G = np.array(M)*(1-np.array(D))
         B = 1 - np.array(G) - np.array(D)
 
+        peaks, _ = find_peaks(I, prominence=0.05)        # ignora les oscil·lacions petites prop de HB
+        t_last = t[peaks[-1]] if len(peaks) else np.nan
+
         plt.subplot(1, 3, i+1)
-        plt.plot(t, G, label='[G]', color='#3E8A34')
-        plt.plot(t, B, label='[B]', color="#C27430")
-        plt.plot(t, D, label='[D]', color="#A71717")
-        # plt.plot(t, I, label='[I]', color="#B39124")
+        # plt.plot(t, G, label='[G]', color='#3E8A34')
+        # plt.plot(t, B, label='[B]', color="#C27430")
+        # plt.plot(t, D, label='[D]', color="#A71717")
+        plt.plot(t, I, label='[I]', color="#A717A2")
+        plt.axvline(t_last, ls=':')
+
         plt.title('G,B,D,I fractions through time')
         plt.xlabel('Time (months)')
         plt.ylabel('[G],[B],[D],[I]')
@@ -453,8 +521,68 @@ def transient(spec=CESC, phis=(0.2, 0.45, 0.7), debug=False):
     plt.show()
 
 
-from scipy.signal import find_peaks          # afegeix-ho als imports de main.py
-from cEquations import PAPER, CESC, CESCH    # CESCH: CESC amb les variables RAW i PIRA
+def single_trans_default(spec=CESCH, t_final=600, prominence=0.05):
+
+    data = solve(spec, t_final)
+
+    t, M, I, D = data.get('t'), data.get('M'), data.get('I'), data.get('D')
+
+    peaks, _ = find_peaks(I, prominence=0.05)        # ignora les oscil·lacions petites prop de HB
+    t_last = t[peaks[-1]] if len(peaks) else np.nan
+
+    p = spec.params
+    phi_H = p['delta'] * (1 + p['eta']) / (1 - p['eta'])
+    t_hopf = p['Ta'] * np.log(p['phi'] / phi_H)       
+    
+    plt.figure()
+    plt.plot(t, I, label='I')
+    if t_hopf > 0:
+        plt.axvline(t_hopf, ls='--', c='k', lw=1, label=r'$\phi(t)=\phi_H$')
+    if not np.isnan(t_last):
+        plt.axvline(t_last, ls=':', c='k', lw=1, label='Last relapse')
+    plt.legend()
+
+
+def ab_discression(spec=CESCH, t_final=600, prominence=0.05, margin=60):
+    data = solve(spec, t_final=t_final)
+    I, t = np.array(data['I']), np.array(data['t'])
+    peaks, _ = find_peaks(I, prominence=prominence)        # ignora les oscil·lacions petites prop de HB
+    if len(peaks) < 2:                                     # 0-1 pics: PPMS
+        return 0
+    if t[peaks[-1]] < t_final - margin:                    # els brots s'aturen abans del final: RRMS+SPMS
+        return 1
+    return 2                                               # brots fins al final: RRMS
+
+
+def ab_scatter(spec=CESCH, t_final=600, prominence=0.05, margin=60, factor=30, n=25):
+    COL_RRMS_SPMS, COL_RRMS, COL_PPMS = "#E88420", "#73D635", "#A228DB"
+    colors = {0: COL_PPMS, 1: COL_RRMS_SPMS, 2: COL_RRMS}
+    names = {0: 'PPMS', 1: 'RRMS+SPMS', 2: 'RRMS'}
+
+    a0, b0 = spec.params['a'], spec.params['b']
+    a_vals = np.geomspace(a0 / factor, a0 * factor, n)    # espaiat logarítmic
+    b_vals = np.geomspace(b0 / factor, b0 * factor, n)
+
+    # ---------- classificació de cada punt (a, b) ----------
+    A, B = np.meshgrid(a_vals, b_vals)
+    canon = np.zeros(A.shape, dtype=int)
+    for i in DotBar(range(n), desc='b'):
+        for j in range(n):
+            canon[i, j] = ab_discression(spec.with_params(a=A[i, j], b=B[i, j]),
+                                         t_final, prominence, margin)
+
+    # ---------- scatter ----------
+    plt.figure(figsize=(7, 6))
+    plt.scatter(A, B, c=[colors[k] for k in canon.ravel()], s=40)
+    for k in names:
+        plt.scatter([], [], color=colors[k], label=names[k])   # entrades de la llegenda
+    plt.plot(a0, b0, 'kx', ms=10, label='default')
+    plt.xscale('log'); plt.yscale('log')
+    plt.xlabel('a'); plt.ylabel('b'); plt.title('MS type')
+    plt.grid(ls=':', color='gray')
+    plt.legend(fontsize=8, loc='upper left', bbox_to_anchor=(1.01, 1))
+    plt.tight_layout(); plt.show()
+    return A, B, canon
 
 
 def stackplot_RAW_PIRA(spec=CESCH, t_final=600, prominence=0.05):
@@ -518,7 +646,6 @@ def stackplot_RAW_PIRA(spec=CESCH, t_final=600, prominence=0.05):
 
     plt.tight_layout(); plt.show()
 
-
 def main():
 #------------------------------ PAPER --------------------------------
     # figure2()
@@ -528,9 +655,13 @@ def main():
     # figure7()
 
 #------------------------------  CESC  --------------------------------
-    # transient(debug=False)
+    # transient(CESC.with_params(a=0.01,b=0.01))
+    # single_trans_default(CESCH.with_params(a=0, b=0.05), prominence=0.05)
     # comparaison_7()
-    stackplot_RAW_PIRA(CESCH.with_params(phi=0.7))
+    # stackplot_RAW_PIRA(CESCH.with_params(phi=0.7))
+    # ab_scatter()
+    phi_bif()
+
 
 
 if __name__ == '__main__':
