@@ -562,7 +562,7 @@ def single_trans_default(spec=CESCH, input = 'I', t_final=600, prominence=0.05):
 
 
     elif input == 'OD':
-        OD = np.array(M)*(1 - np.array(D))
+        OD = 1 - np.array(M)*(1 - np.array(D))
         plt.plot(t, OD, label='OD')
         if t_hopf > 0:
             plt.axvline(t_hopf, ls='--', c='k', lw=1, label=r'$\phi(t)=\phi_H$')
@@ -612,6 +612,70 @@ def ab_scatter(spec=CESCH, t_final=600, prominence=0.05, margin=60, factor=30, n
     plt.legend(fontsize=8, loc='upper left', bbox_to_anchor=(1.01, 1))
     plt.tight_layout(); plt.show()
     return A, B, canon
+
+
+def ab_maps(spec=CESCH, t_final=600, prominence=0.05, margin=60, min_peaks=2,
+            factor=30, n=15, t_share=360, pira_ref=None):
+    """Effect of a and b on the disease course, on an (a, b) grid (log axes).
+
+    A: years with relapses L = t_last - t_first.
+    B: share of D due to PIRA at t_share (months).
+    Black line: boundary of the PPMS region (fewer than min_peaks relapses).
+    pira_ref: if given (e.g. the PIRA share from Kappos et al.), drawn as a contour on B.
+    """
+    a0, b0 = spec.params['a'], spec.params['b']
+    a_vals = np.geomspace(a0 / factor, a0 * factor, n)    # espaiat logarítmic
+    b_vals = np.geomspace(b0 / factor, b0 * factor, n)
+    A, B = np.meshgrid(a_vals, b_vals)
+
+    # ---------- una simulació per punt: L, fracció PIRA i tipus ----------
+    L = np.zeros(A.shape)
+    share = np.zeros(A.shape)
+    canon = np.zeros(A.shape, dtype=int)                   # 0 PPMS, 1 RRMS+SPMS, 2 RRMS
+    for i in DotBar(range(n), desc='b'):
+        for j in range(n):
+            d = solve(spec.with_params(a=A[i, j], b=B[i, j]), t_final=t_final)
+            t, I = np.array(d['t']), np.array(d['I'])
+            D, PIRA = np.array(d['D']), np.array(d['PIRA'])
+
+            k = np.searchsorted(t, t_share)                # índex de t = t_share
+            share[i, j] = PIRA[k] / D[k]
+
+            peaks, _ = find_peaks(I, prominence=prominence)
+            if len(peaks) < min_peaks:                     # PPMS: sense fase de brots
+                continue
+            L[i, j] = (t[peaks[-1]] - t[peaks[0]]) / 12    # mesos -> anys
+            canon[i, j] = 1 if t[peaks[-1]] < t_final - margin else 2
+
+    # ---------- figura ----------
+    fig, (axA, axB) = plt.subplots(1, 2, figsize=(14, 6), layout='constrained')
+
+    pcA = axA.pcolormesh(A, B, L, shading='nearest', cmap='viridis')
+    fig.colorbar(pcA, ax=axA, label='Years with relapses L')
+    axA.set_title('Duration of the relapsing phase')
+
+    pcB = axB.pcolormesh(A, B, share, shading='nearest', cmap='magma', vmin=0, vmax=1)
+    fig.colorbar(pcB, ax=axB, label=f'$D_{{PIRA}}/D$ at {t_share / 12:g} years')
+    axB.set_title('Share of disability due to background damage (PIRA)')
+    if pira_ref is not None:
+        cs = axB.contour(A, B, share, levels=[pira_ref], colors='w', linewidths=1.5)
+        axB.clabel(cs, fmt=lambda v: f'{v:.0%} (clinical)', fontsize=8)
+
+    for ax, letter in ((axA, 'A'), (axB, 'B')):
+        if (canon == 0).any():                             # frontera de la regió PPMS
+            ax.contour(A, B, (canon == 0).astype(float), levels=[0.5], colors='k', linewidths=1.5)
+        if (canon == 2).any():                             # frontera de la regió RRMS
+            ax.contour(A, B, (canon == 2).astype(float), levels=[0.5], colors='k',
+                       linestyles='--', linewidths=1.5)
+        ax.plot(a0, b0, 'wx', ms=10, mew=2)                # valors per defecte
+        ax.set_xscale('log'); ax.set_yscale('log')
+        ax.set_xlabel('a'); ax.set_ylabel('b')
+        ax.text(0.97, 0.05, letter, transform=ax.transAxes, ha='right', va='bottom',
+                fontsize=16, color='w')
+
+    fig.suptitle('Effect of a and b (black line: PPMS boundary, ×: default values)')
+    plt.show()
+    return A, B, L, share, canon
 
 
 def stackplot_RAW_PIRA(spec=CESCH, t_final=600, prominence=0.05):
@@ -675,6 +739,59 @@ def stackplot_RAW_PIRA(spec=CESCH, t_final=600, prominence=0.05):
 
     plt.tight_layout(); plt.show()
 
+
+def relapse_timing(spec=CESC, phis=np.linspace(0.5, 1.5, 11), Tas=np.linspace(200, 800, 7),
+                   t_final=1200, prominence=0.05, margin=60, min_peaks=2):
+    """Simulated last relapse t_last against the analytical crossing time
+    t_H = Ta ln(phi0/phi_H), for a grid of (phi0, Ta).
+
+    Points on the diagonal: relapses stop when phi(t) crosses phi_H.
+    Height above it: delay after the Hopf crossing.
+    Up-triangles: still relapsing at t_final - margin (RRMS, censored).
+    Runs with fewer than min_peaks peaks (PPMS) are counted, not plotted.
+    """
+    p = spec.params
+    phi_H = p['delta'] * (1 + p['eta']) / (1 - p['eta'])
+
+    # ---------- simulacions: t_H analític i t_last simulat per a cada (phi0, Ta) ----------
+    rows = []                                              # (Ta, t_H, t_last, rrms)
+    n_ppms = 0
+    for phi in DotBar(phis, desc='phi'):
+        for Ta in Tas:
+            d = solve(spec.with_params(phi=phi, Ta=Ta), t_final=t_final)
+            t, I = np.array(d['t']), np.array(d['I'])
+            peaks, _ = find_peaks(I, prominence=prominence)
+            if len(peaks) < min_peaks or phi <= phi_H:     # sense brots sostinguts: PPMS
+                n_ppms += 1
+                continue
+            t_last = t[peaks[-1]]
+            rows.append((Ta, Ta * np.log(phi / phi_H), t_last, t_last >= t_final - margin))
+    Ta_, tH, tl, rrms = (np.array(c) for c in zip(*rows))
+    tH, tl = tH / 12, tl / 12                              # mesos -> anys
+
+    # ---------- figura ----------
+    fig, ax = plt.subplots(figsize=(8, 6.5))
+    norm = plt.Normalize(Tas.min(), Tas.max())
+    ax.scatter(tH[~rrms], tl[~rrms], c=Ta_[~rrms], cmap='viridis', norm=norm,
+               marker='o', s=40, label='RRMS+SPMS')
+    sc = ax.scatter(tH[rrms], tl[rrms], c=Ta_[rrms], cmap='viridis', norm=norm,
+                    marker='^', s=60, edgecolors='k', lw=0.5, label='RRMS (still relapsing)')
+
+    lim = max(tH.max(), tl.max()) * 1.05
+    ax.plot([0, lim], [0, lim], 'k-', lw=1, label=r'$t_{last} = t_H$')
+    if rrms.any():                                         # línia de censura només si hi ha RRMS
+        ax.axhline((t_final - margin) / 12, ls='--', c='gray', lw=1, label='End of observation')
+
+    ax.set_xlim(0, lim); ax.set_ylim(0, lim)
+    ax.set_xlabel(r'$t_H = T_a \ln(\varphi_0/\varphi_H)$  (years)')
+    ax.set_ylabel(r'Last relapse $t_{last}$  (years)')
+    ax.set_title(f'When relapses stop: simulation vs theory  ({n_ppms} PPMS runs not shown)')
+    ax.grid(ls=':', color='gray')
+    ax.legend(loc='upper left', fontsize=8)
+    fig.colorbar(sc, ax=ax, label='$T_a$ (months)')
+    plt.tight_layout(); plt.show()
+
+
 def main():
 #------------------------------ PAPER --------------------------------
     # figure2()
@@ -689,7 +806,9 @@ def main():
     # comparaison_7()
     # stackplot_RAW_PIRA(CESCH.with_params(phi=0.7))
     # ab_scatter()
-    phi_bif()
+    # phi_bif()
+    # relapse_timing()
+    ab_maps(n=50)
     # single_trans_default(CESC.with_params(phi=3), input='OD')
     # plt.show()
 
