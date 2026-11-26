@@ -435,9 +435,10 @@ def comparaison_7(path='12918_2010_719_MOESM3_ESM.XLS',
 
 def phi_bif(spec=CESC, t_final=600):
     phis = [0.5, 0.8, 1.5]
-    plt.figure()
-    figA, figB = plt.subplots(1,2)
+    fig = plt.figure(layout='constrained', figsize=(12,5))
+    figA, figB = fig.subfigures(1,2)
 
+    axA = figA.subplots()
     for phi in phis:
         data = solve(spec.with_params(phi=phi), t_final=t_final)
 
@@ -455,19 +456,19 @@ def phi_bif(spec=CESC, t_final=600):
 
         idx = np.where(t == t_last)[0]
         y_last = OD[idx][0]  # Valor de OD en t_last
-        figA.plot(t, OD, marker='o', markevery=idx, mfc='white', mec='k', ms=8)
-        figA.vlines(t_last, ymin=0, ymax=y_last, ls=':', color='gray', alpha=0.5)
+        axA.plot(t, OD, marker='o', markevery=idx, mfc='white', mec='k', ms=8)
+        axA.vlines(t_last, ymin=0, ymax=y_last, ls=':', color='gray', alpha=0.5)
+
+    axA.set_ylim(0, 1.02)
+    axA.set_xlim(0, t_final)
+    axA.set_xlabel('Time')
+    axA.set_ylabel('OD')
+    axA.set_title('Transient visualisation of the OD through time in different disease intensities')
 
 
-    figA.ylim(0, 1.02)
-    figA.xlim(0, 600)
-    figA.xlabel('Time')
-    figA.ylabel('OD')
-    figA.grid(True)
-    figA.legend()
-    figA.title('WASAAAA')
-
-    phis = np.linspace(0.5,3,30)
+    phis = np.linspace(0.5,2.5,60)
+    t_vals = []
+    y_vals = []
 
     for phi in phis:
         data = solve(spec.with_params(phi=phi), t_final=t_final)
@@ -479,12 +480,26 @@ def phi_bif(spec=CESC, t_final=600):
 
         peaks, _ = find_peaks(OD, prominence=0.05)        # ignora les oscil·lacions petites prop de HB
         t_last = t[peaks[-1]] if len(peaks) else np.nan
+        t_vals.append(t_last)
 
         idx = np.where(t == t_last)[0]
         y_last = OD[idx][0]  # Valor de OD en t_last
+        y_vals.append(y_last)
 
+    axB, axC = figB.subplots(2,1, sharex=True)
+    
+    axB.plot(phis, t_vals)
+    axB.set_ylabel('Last oscillation time')
+    axB.set_title('Last oscillation time values on phi')
 
+    axC.plot(phis,y_vals)
+    axC.set_xlabel('φ')
+    axC.set_ylabel('Last remission peak value')
+    axC.set_title('Last remission peak value on phi')
+
+    plt.suptitle('Analysis of the effect of Phi on relapses')
     plt.show()
+
 
 def transient(spec=CESC, phis=(0.2, 0.45, 0.7), debug=False):
     plt.figure(figsize=(13, 5))
@@ -521,7 +536,7 @@ def transient(spec=CESC, phis=(0.2, 0.45, 0.7), debug=False):
     plt.show()
 
 
-def single_trans_default(spec=CESCH, t_final=600, prominence=0.05):
+def single_trans_default(spec=CESCH, input = 'I', t_final=600, prominence=0.05):
 
     data = solve(spec, t_final)
 
@@ -535,12 +550,26 @@ def single_trans_default(spec=CESCH, t_final=600, prominence=0.05):
     t_hopf = p['Ta'] * np.log(p['phi'] / phi_H)       
     
     plt.figure()
-    plt.plot(t, I, label='I')
-    if t_hopf > 0:
-        plt.axvline(t_hopf, ls='--', c='k', lw=1, label=r'$\phi(t)=\phi_H$')
-    if not np.isnan(t_last):
-        plt.axvline(t_last, ls=':', c='k', lw=1, label='Last relapse')
-    plt.legend()
+
+    if input == 'I':
+        plt.plot(t, I, label='I')
+        if t_hopf > 0:
+            plt.axvline(t_hopf, ls='--', c='k', lw=1, label=r'$\phi(t)=\phi_H$')
+        if not np.isnan(t_last):
+            plt.axvline(t_last, ls=':', c='k', lw=1, label='Last relapse')
+        plt.legend()
+        plt.xlim(0, t_final)
+
+
+    elif input == 'OD':
+        OD = np.array(M)*(1 - np.array(D))
+        plt.plot(t, OD, label='OD')
+        if t_hopf > 0:
+            plt.axvline(t_hopf, ls='--', c='k', lw=1, label=r'$\phi(t)=\phi_H$')
+        if not np.isnan(t_last):
+            plt.axvline(t_last, ls=':', c='k', lw=1, label='Last relapse')
+        plt.legend()
+        plt.xlim(0, t_final)
 
 
 def ab_discression(spec=CESCH, t_final=600, prominence=0.05, margin=60):
@@ -661,6 +690,9 @@ def main():
     # stackplot_RAW_PIRA(CESCH.with_params(phi=0.7))
     # ab_scatter()
     phi_bif()
+    # single_trans_default(CESC.with_params(phi=3), input='OD')
+    # plt.show()
+
 
 
 
